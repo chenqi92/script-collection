@@ -1,0 +1,2 @@
+# windows-folder-tree
+一个脚本，在windows中输出指定文件夹下的文件或者文件夹以树形结构输出目录结构，可导出，可使用gitignore忽略指定目录或文件
