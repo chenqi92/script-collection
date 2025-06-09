@@ -229,6 +229,178 @@ class SSHFileManager:
                 self.sftp.remove(item_path)
         self.sftp.rmdir(path)
 
+    def batch_rename(self, path, rename_type, pattern=None, replacement=None):
+        """批量重命名文件和文件夹"""
+        try:
+            items = self.list_directory(path)
+            results = []
+            success_count = 0
+            failed_count = 0
+
+            for item in items:
+                old_name = item['name']
+                new_name = None
+                
+                if rename_type == 'regex':
+                    # 正则表达式重命名
+                    if pattern and replacement is not None:
+                        new_name = re.sub(pattern, replacement, old_name)
+                elif rename_type == 'remove_number_prefix':
+                    # 移除数字前缀和空格
+                    new_name = re.sub(r'^\d+\s*', '', old_name)
+                elif rename_type == 'add_sequence':
+                    # 添加序号前缀
+                    index = items.index(item) + 1
+                    ext = os.path.splitext(old_name)[1]
+                    base = os.path.splitext(old_name)[0]
+                    new_name = f"{index:03d}_{base}{ext}"
+                elif rename_type == 'remove_special_chars':
+                    # 移除特殊字符
+                    new_name = re.sub(r'[^\w\s.-]', '', old_name)
+                elif rename_type == 'to_lowercase':
+                    # 转为小写
+                    new_name = old_name.lower()
+                elif rename_type == 'to_uppercase':
+                    # 转为大写
+                    new_name = old_name.upper()
+                elif rename_type == 'space_to_underscore':
+                    # 空格替换为下划线
+                    new_name = old_name.replace(' ', '_')
+                
+                if new_name and new_name != old_name:
+                    old_path = item['path']
+                    new_path = os.path.join(path, new_name).replace('\\', '/')
+                    
+                    try:
+                        self.sftp.rename(old_path, new_path)
+                        results.append({
+                            'old_name': old_name,
+                            'new_name': new_name,
+                            'success': True,
+                            'message': '重命名成功'
+                        })
+                        success_count += 1
+                    except Exception as e:
+                        results.append({
+                            'old_name': old_name,
+                            'new_name': new_name,
+                            'success': False,
+                            'message': f'重命名失败: {str(e)}'
+                        })
+                        failed_count += 1
+                else:
+                    results.append({
+                        'old_name': old_name,
+                        'new_name': old_name,
+                        'success': True,
+                        'message': '无需重命名'
+                    })
+            
+            return True, results, f"重命名完成: {success_count} 成功, {failed_count} 失败"
+        except Exception as e:
+            return False, [], f"批量重命名失败: {str(e)}"
+
+    def create_folders_for_files(self, path):
+        """为目录下的文件创建同名文件夹并移入"""
+        try:
+            items = self.list_directory(path)
+            results = []
+            success_count = 0
+            failed_count = 0
+
+            # 只处理文件，不处理文件夹
+            files = [item for item in items if not item['is_dir']]
+            
+            for file_item in files:
+                filename = file_item['name']
+                file_path = file_item['path']
+                
+                # 获取文件名（不包括扩展名）作为文件夹名
+                folder_name = os.path.splitext(filename)[0]
+                folder_path = os.path.join(path, folder_name).replace('\\', '/')
+                new_file_path = os.path.join(folder_path, filename).replace('\\', '/')
+                
+                try:
+                    # 创建文件夹
+                    self.sftp.mkdir(folder_path)
+                    
+                    # 移动文件到新文件夹
+                    self.sftp.rename(file_path, new_file_path)
+                    
+                    results.append({
+                        'filename': filename,
+                        'folder_name': folder_name,
+                        'success': True,
+                        'message': '创建文件夹并移动成功'
+                    })
+                    success_count += 1
+                except Exception as e:
+                    results.append({
+                        'filename': filename,
+                        'folder_name': folder_name,
+                        'success': False,
+                        'message': f'操作失败: {str(e)}'
+                    })
+                    failed_count += 1
+            
+            return True, results, f"文件夹创建完成: {success_count} 成功, {failed_count} 失败"
+        except Exception as e:
+            return False, [], f"创建文件夹失败: {str(e)}"
+
+    def organize_directory(self, path, organize_type):
+        """整理目录"""
+        try:
+            if organize_type == 'create_folders_for_files':
+                return self.create_folders_for_files(path)
+            elif organize_type == 'remove_empty_dirs':
+                return self.remove_empty_directories(path)
+            else:
+                return False, [], "未知的整理类型"
+        except Exception as e:
+            return False, [], f"目录整理失败: {str(e)}"
+
+    def remove_empty_directories(self, path):
+        """移除空目录"""
+        try:
+            items = self.list_directory(path)
+            results = []
+            success_count = 0
+            failed_count = 0
+
+            # 只处理目录
+            dirs = [item for item in items if item['is_dir']]
+            
+            for dir_item in dirs:
+                dir_path = dir_item['path']
+                dir_items = self.list_directory(dir_path)
+                
+                if not dir_items:  # 空目录
+                    try:
+                        self.sftp.rmdir(dir_path)
+                        results.append({
+                            'dir_name': dir_item['name'],
+                            'success': True,
+                            'message': '空目录已删除'
+                        })
+                        success_count += 1
+                    except Exception as e:
+                        results.append({
+                            'dir_name': dir_item['name'],
+                            'success': False,
+                            'message': f'删除失败: {str(e)}'
+                        })
+                        failed_count += 1
+                else:
+                    results.append({
+                        'dir_name': dir_item['name'],
+                        'success': True,
+                        'message': '目录非空，跳过'
+                    })
+            
+            return True, results, f"空目录清理完成: {success_count} 成功, {failed_count} 失败"
+        except Exception as e:
+            return False, [], f"空目录清理失败: {str(e)}"
+
 # 全局SSH管理器实例
 ssh_manager = SSHFileManager()
 
@@ -404,6 +576,62 @@ def browse():
             'success': False,
             'message': f'浏览失败: {str(e)}'
         })
+
+@app.route('/batch_rename', methods=['POST'])
+def batch_rename():
+    """批量重命名文件和文件夹"""
+    if not ssh_manager.is_connected():
+        return jsonify({
+            'success': False,
+            'message': '请先连接SSH服务器'
+        })
+    
+    data = request.get_json()
+    path = data.get('path')
+    rename_type = data.get('rename_type')
+    pattern = data.get('pattern')
+    replacement = data.get('replacement')
+    
+    if not path or not rename_type:
+        return jsonify({
+            'success': False,
+            'message': '请指定目录路径和重命名类型'
+        })
+    
+    success, results, message = ssh_manager.batch_rename(path, rename_type, pattern, replacement)
+    
+    return jsonify({
+        'success': success,
+        'results': results,
+        'message': message
+    })
+
+@app.route('/organize_directory', methods=['POST'])
+def organize_directory():
+    """整理目录"""
+    if not ssh_manager.is_connected():
+        return jsonify({
+            'success': False,
+            'message': '请先连接SSH服务器'
+        })
+    
+    data = request.get_json()
+    path = data.get('path')
+    organize_type = data.get('organize_type')
+    
+    if not path or not organize_type:
+        return jsonify({
+            'success': False,
+            'message': '请指定目录路径和整理类型'
+        })
+    
+    success, results, message = ssh_manager.organize_directory(path, organize_type)
+    
+    return jsonify({
+        'success': success,
+        'results': results,
+        'message': message
+    })
 
 if __name__ == '__main__':
     # 确保模板目录存在
