@@ -8,6 +8,7 @@ import shutil
 import time
 import re
 import fnmatch
+import json
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, flash, redirect, url_for
 import paramiko
@@ -337,6 +338,7 @@ class FileManager:
         self.tree_generator = TreeGenerator()
         self.empty_dir_cleaner = EmptyDirCleaner()
         self.connection_info = {}  # 存储连接信息用于重连
+        self.connection_history_file = 'connection_history.json'  # 连接历史文件
         
     def set_mode(self, mode):
         """设置工作模式：本地或远程"""
@@ -386,8 +388,12 @@ class FileManager:
                 'hostname': hostname,
                 'username': username, 
                 'password': password,
-                'port': port
+                'port': port,
+                'auth_type': 'password'
             }
+            
+            # 添加到连接历史
+            self.add_connection_to_history(hostname, username, port, 'password')
             
             return True, "连接成功"
         except Exception as e:
@@ -1075,6 +1081,145 @@ class FileManager:
             
         except Exception as e:
             return False, f"创建文件夹失败: {str(e)}", []
+    
+    def load_connection_history(self):
+        """加载连接历史"""
+        try:
+            if os.path.exists(self.connection_history_file):
+                with open(self.connection_history_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            return []
+        except Exception as e:
+            print(f"加载连接历史失败: {e}")
+            return []
+    
+    def save_connection_history(self, connections):
+        """保存连接历史"""
+        try:
+            with open(self.connection_history_file, 'w', encoding='utf-8') as f:
+                json.dump(connections, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"保存连接历史失败: {e}")
+            return False
+    
+    def add_connection_to_history(self, hostname, username, port=22, auth_type='password', description=''):
+        """添加连接到历史记录"""
+        connections = self.load_connection_history()
+        
+        # 检查是否已存在相同连接
+        connection_id = f"{username}@{hostname}:{port}"
+        existing_index = -1
+        for i, conn in enumerate(connections):
+            if conn.get('id') == connection_id:
+                existing_index = i
+                break
+        
+        connection_data = {
+            'id': connection_id,
+            'hostname': hostname,
+            'username': username,
+            'port': port,
+            'auth_type': auth_type,  # 'password' 或 'key'
+            'description': description,
+            'last_connected': datetime.now().isoformat(),
+            'connect_count': 1
+        }
+        
+        if existing_index >= 0:
+            # 更新现有连接
+            connections[existing_index]['last_connected'] = connection_data['last_connected']
+            connections[existing_index]['connect_count'] = connections[existing_index].get('connect_count', 0) + 1
+            connections[existing_index]['auth_type'] = auth_type
+            connections[existing_index]['description'] = description
+        else:
+            # 添加新连接到开头
+            connections.insert(0, connection_data)
+        
+        # 限制历史记录数量
+        if len(connections) > 20:
+            connections = connections[:20]
+        
+        self.save_connection_history(connections)
+        return True
+    
+    def remove_connection_from_history(self, connection_id):
+        """从历史记录中移除连接"""
+        connections = self.load_connection_history()
+        connections = [conn for conn in connections if conn.get('id') != connection_id]
+        self.save_connection_history(connections)
+        return True
+    
+    def connect_with_key(self, hostname, username, private_key_path, port=22, passphrase=None):
+        """使用SSH私钥连接到服务器"""
+        if self.mode != 'remote':
+            return False, "请先切换到远程模式"
+            
+        try:
+            self.ssh = paramiko.SSHClient()
+            self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            # 加载私钥
+            try:
+                if passphrase:
+                    key = paramiko.RSAKey.from_private_key_file(private_key_path, password=passphrase)
+                else:
+                    key = paramiko.RSAKey.from_private_key_file(private_key_path)
+            except paramiko.PasswordRequiredException:
+                return False, "私钥需要密码"
+            except Exception as e:
+                # 尝试其他密钥格式
+                try:
+                    if passphrase:
+                        key = paramiko.Ed25519Key.from_private_key_file(private_key_path, password=passphrase)
+                    else:
+                        key = paramiko.Ed25519Key.from_private_key_file(private_key_path)
+                except:
+                    try:
+                        if passphrase:
+                            key = paramiko.ECDSAKey.from_private_key_file(private_key_path, password=passphrase)
+                        else:
+                            key = paramiko.ECDSAKey.from_private_key_file(private_key_path)
+                    except:
+                        return False, f"无法加载私钥文件: {str(e)}"
+            
+            # 连接服务器
+            self.ssh.connect(
+                hostname=hostname,
+                port=port,
+                username=username,
+                pkey=key,
+                timeout=Config.SSH_TIMEOUT,
+                banner_timeout=Config.SSH_BANNER_TIMEOUT,
+                auth_timeout=Config.SSH_AUTH_TIMEOUT,
+                look_for_keys=False,
+                allow_agent=False
+            )
+            
+            # 设置保持连接活跃
+            transport = self.ssh.get_transport()
+            transport.set_keepalive(Config.SSH_KEEPALIVE_INTERVAL)
+            
+            self.sftp = self.ssh.open_sftp()
+            self.connected = True
+            
+            # 存储连接信息用于重连
+            self.connection_info = {
+                'hostname': hostname,
+                'username': username,
+                'private_key_path': private_key_path,
+                'passphrase': passphrase,
+                'port': port,
+                'auth_type': 'key'
+            }
+            
+            # 添加到连接历史
+            self.add_connection_to_history(hostname, username, port, 'key')
+            
+            return True, "连接成功"
+        except Exception as e:
+            self.connected = False
+            return False, f"连接失败: {str(e)}"
 
 # 全局文件管理器实例
 file_manager = FileManager()
@@ -1463,6 +1608,96 @@ def write_file():
         'success': success,
         'message': message
     })
+
+@app.route('/connection_history')
+def get_connection_history():
+    """获取连接历史"""
+    try:
+        connections = file_manager.load_connection_history()
+        return jsonify({
+            'success': True,
+            'connections': connections
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取连接历史失败: {str(e)}',
+            'connections': []
+        })
+
+@app.route('/remove_connection_history', methods=['POST'])
+def remove_connection_history():
+    """移除连接历史记录"""
+    connection_id = request.json.get('connection_id')
+    
+    if not connection_id:
+        return jsonify({
+            'success': False,
+            'message': '请提供连接ID'
+        })
+    
+    try:
+        file_manager.remove_connection_from_history(connection_id)
+        return jsonify({
+            'success': True,
+            'message': '连接历史已移除'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'移除连接历史失败: {str(e)}'
+        })
+
+@app.route('/connect_with_key', methods=['POST'])
+def connect_with_key():
+    """使用SSH密钥连接服务器"""
+    hostname = request.json.get('hostname')
+    username = request.json.get('username')
+    private_key_path = request.json.get('private_key_path')
+    port = request.json.get('port', 22)
+    passphrase = request.json.get('passphrase')
+    
+    if not all([hostname, username, private_key_path]):
+        return jsonify({
+            'success': False,
+            'message': '请提供主机名、用户名和私钥路径'
+        })
+    
+    success, message = file_manager.connect_with_key(hostname, username, private_key_path, port, passphrase)
+    return jsonify({
+        'success': success,
+        'message': message
+    })
+
+@app.route('/update_connection_description', methods=['POST'])
+def update_connection_description():
+    """更新连接描述"""
+    connection_id = request.json.get('connection_id')
+    description = request.json.get('description', '')
+    
+    if not connection_id:
+        return jsonify({
+            'success': False,
+            'message': '请提供连接ID'
+        })
+    
+    try:
+        connections = file_manager.load_connection_history()
+        for conn in connections:
+            if conn.get('id') == connection_id:
+                conn['description'] = description
+                break
+        
+        file_manager.save_connection_history(connections)
+        return jsonify({
+            'success': True,
+            'message': '连接描述已更新'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'更新连接描述失败: {str(e)}'
+        })
 
 if __name__ == '__main__':
     print("启动文件管理器服务器...")

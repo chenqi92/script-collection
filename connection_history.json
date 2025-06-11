@@ -1,0 +1,12 @@
+[
+  {
+    "id": "root@192.168.0.2:22",
+    "hostname": "192.168.0.2",
+    "username": "root",
+    "port": "22",
+    "auth_type": "password",
+    "description": "",
+    "last_connected": "2025-06-11T13:13:41.973616",
+    "connect_count": 1
+  }
+]
