@@ -129,6 +129,11 @@ function switchFunction(functionName) {
     // 清除上一个功能的状态
     clearPreviousFunctionState();
 
+    // 清理文件编辑器状态（如果不是切换到编辑器）
+    if (functionName !== 'editor') {
+        clearEditorState();
+    }
+
     // 更新选项卡状态
     document.querySelectorAll('.function-tab').forEach(tab => {
         tab.classList.remove('active');
@@ -260,6 +265,47 @@ function clearPreviousFunctionState() {
 
     // 清除全局数据
     duplicatesData = [];
+}
+
+// 清理文件编辑器状态
+function clearEditorState() {
+    // 清空编辑器内容
+    const fileEditor = document.getElementById('fileEditor');
+    if (fileEditor) {
+        fileEditor.value = '';
+    }
+
+    // 重置文件信息显示
+    const fileInfo = document.getElementById('fileInfo');
+    if (fileInfo) {
+        fileInfo.textContent = '未加载文件';
+    }
+
+    // 重置光标信息
+    const cursorInfo = document.getElementById('cursorInfo');
+    if (cursorInfo) {
+        cursorInfo.textContent = '行: 1, 列: 1';
+    }
+
+    // 重置文件类型选择
+    const fileType = document.getElementById('fileType');
+    if (fileType) {
+        fileType.value = 'text';
+    }
+
+    // 清空文件路径
+    const editorFilePath = document.getElementById('editorFilePath');
+    if (editorFilePath) {
+        editorFilePath.value = '';
+    }
+
+    // 清除全局变量
+    if (typeof currentFileContent !== 'undefined') {
+        currentFileContent = '';
+    }
+    if (typeof currentFilePath !== 'undefined') {
+        currentFilePath = '';
+    }
 }
 
 // 更新模式显示
@@ -422,6 +468,10 @@ function hideLoading() {
 // 显示消息提示
 function showMessage(message, type = 'info') {
     const messageContainer = document.getElementById('messageContainer');
+    
+    // 清除所有现有消息，确保只显示一个
+    messageContainer.innerHTML = '';
+    
     const toastId = 'toast-' + Date.now();
 
     const toastDiv = document.createElement('div');

@@ -52,10 +52,17 @@ async function loadFileContent() {
 // 保存文件内容
 async function saveFileContent() {
     const filePath = document.getElementById('editorFilePath').value;
-    const content = document.getElementById('fileEditor').value;
+    const editor = document.getElementById('fileEditor');
+    const content = editor.value;
 
     if (!filePath) {
         showMessage('请输入文件路径', 'warning');
+        return;
+    }
+
+    // 验证内容一致性
+    if (content !== editor.value) {
+        showMessage('编辑器内容不一致，请重新加载文件', 'warning');
         return;
     }
 
@@ -72,6 +79,9 @@ async function saveFileContent() {
     showLoading();
 
     try {
+        // 再次获取当前编辑器内容，确保最新
+        const currentContent = document.getElementById('fileEditor').value;
+        
         const response = await fetch('/write_file', {
             method: 'POST',
             headers: {
@@ -79,7 +89,7 @@ async function saveFileContent() {
             },
             body: JSON.stringify({
                 file_path: filePath,
-                content: content
+                content: currentContent
             })
         });
 
@@ -87,7 +97,7 @@ async function saveFileContent() {
         hideLoading();
 
         if (result.success) {
-            currentFileContent = content;
+            currentFileContent = currentContent;
             showMessage('文件保存成功', 'success');
             addOperationLog('文件编辑', `成功保存文件: ${filePath}`, 'success');
         } else {

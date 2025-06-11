@@ -505,17 +505,49 @@ class FileManager:
         try:
             items = []
             if self.mode == 'local':
+                # Windows系统特殊处理
+                if os.name == 'nt':
+                    # 如果路径是根目录或空，显示所有磁盘驱动器
+                    if path in ['/', '', '.', 'drives']:
+                        import string
+                        for letter in string.ascii_uppercase:
+                            drive = f"{letter}:\\"
+                            if os.path.exists(drive):
+                                items.append({
+                                    'path': drive.replace('\\', '/'),
+                                    'name': f"{letter}: 驱动器",
+                                    'size': 0,
+                                    'is_dir': True,
+                                    'modified': '系统驱动器'
+                                })
+                        return items
+                    
+                    # 标准化Windows路径
+                    if path.startswith('/') and len(path) > 1:
+                        # 将类Unix路径转换为Windows路径
+                        path = path.replace('/', '\\')
+                        if not path.endswith('\\') and len(path) == 2 and path[1] == ':':
+                            path += '\\'
+                
+                # 正常目录列表
                 for item in os.listdir(path):
                     item_path = os.path.join(path, item)
                     stat_info = os.stat(item_path)
+                    
+                    # 为Windows系统标准化路径显示
+                    display_path = item_path
+                    if os.name == 'nt':
+                        display_path = item_path.replace('\\', '/')
+                    
                     items.append({
-                        'path': item_path,
+                        'path': display_path,
                         'name': item,
                         'size': stat_info.st_size,
                         'is_dir': os.path.isdir(item_path),
                         'modified': datetime.fromtimestamp(stat_info.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
                     })
             else:
+                # 远程模式保持原逻辑
                 for item in self.sftp.listdir_attr(path):
                     item_path = os.path.join(path, item.filename).replace('\\', '/')
                     items.append({
@@ -1394,10 +1426,21 @@ def browse():
     
     try:
         items = file_manager.list_directory(path)
+        
+        # 获取标准化的当前路径
+        if file_manager.get_mode() == 'local':
+            # 对于Windows系统，标准化路径显示
+            if os.name == 'nt':
+                current_path = os.path.abspath(path).replace('\\', '/')
+            else:
+                current_path = os.path.abspath(path)
+        else:
+            current_path = path
+            
         return jsonify({
             'success': True,
             'items': items,
-            'current_path': path
+            'current_path': current_path
         })
     except Exception as e:
         return jsonify({

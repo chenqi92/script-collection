@@ -18,7 +18,18 @@ async function browsePath(inputId) {
     }
 
     currentBrowsingInput = inputId;
-    const defaultPath = currentMode === 'local' ? '.' : '/';
+    // 设置默认路径，Windows本地模式显示驱动器列表
+    let defaultPath;
+    if (currentMode === 'local') {
+        // 检查是否是Windows系统
+        if (navigator.platform.toLowerCase().includes('win')) {
+            defaultPath = 'drives'; // Windows显示驱动器列表
+        } else {
+            defaultPath = '/'; // Linux/Mac显示根目录
+        }
+    } else {
+        defaultPath = '/'; // 远程模式显示根目录
+    }
     currentPath = document.getElementById(inputId).value || defaultPath;
     
     // 初始化路径输入框
@@ -65,13 +76,29 @@ function displayFileList(items, path) {
 
     let html = '';
 
-    // 添加上级目录选项
-    if (path !== '/') {
+    // 添加上级目录选项或驱动器列表
+    if (currentMode === 'local' && (path === '/' || path === '' || path === '.' || path === 'drives')) {
+        // Windows根目录，不显示上级目录
+    } else if (path !== '/') {
+        // 普通目录显示上级目录
         html += `
             <div class="list-group-item file-item" onclick="navigateToParent()">
                 <i class="bi bi-arrow-up"></i> 上级目录
             </div>
         `;
+    }
+
+    // 在Windows本地模式下，添加驱动器列表入口
+    if (currentMode === 'local' && path !== '/' && path !== '' && path !== '.' && path !== 'drives') {
+        // 检测是否在Windows驱动器根目录
+        const isDriveRoot = /^[A-Z]:\/$/i.test(path);
+        if (isDriveRoot) {
+            html += `
+                <div class="list-group-item file-item" onclick="loadDirectory('drives')">
+                    <i class="bi bi-hdd"></i> 其他驱动器
+                </div>
+            `;
+        }
     }
 
     // 先显示目录
@@ -108,19 +135,63 @@ function displayFileList(items, path) {
 // 更新面包屑导航
 function updateBreadcrumb(path) {
     const breadcrumb = document.getElementById('pathBreadcrumb');
-    const parts = path.split('/').filter(part => part !== '');
-
-    let html = '<li class="breadcrumb-item"><a href="#" onclick="loadDirectory(\'/\')">根目录</a></li>';
-    let currentPath = '';
-
-    parts.forEach((part, index) => {
-        currentPath += '/' + part;
-        if (index === parts.length - 1) {
-            html += `<li class="breadcrumb-item active">${part}</li>`;
+    let html = '';
+    
+    if (currentMode === 'local') {
+        // 本地模式的面包屑处理
+        if (path === '/' || path === '' || path === '.' || path === 'drives') {
+            // 显示驱动器列表
+            html = '<li class="breadcrumb-item active">驱动器列表</li>';
         } else {
-            html += `<li class="breadcrumb-item"><a href="#" onclick="loadDirectory('${currentPath}')">${part}</a></li>`;
+            // Windows路径处理
+            const isWindowsPath = /^[A-Z]:/i.test(path);
+            if (isWindowsPath) {
+                const parts = path.split('/').filter(part => part !== '');
+                const driveLetter = parts[0]; // 如 "C:"
+                
+                // 驱动器根目录链接
+                html += `<li class="breadcrumb-item"><a href="#" onclick="loadDirectory('drives')">驱动器</a></li>`;
+                html += `<li class="breadcrumb-item"><a href="#" onclick="loadDirectory('${driveLetter}/')">${driveLetter}</a></li>`;
+                
+                // 其他路径部分
+                let currentPath = driveLetter;
+                for (let i = 1; i < parts.length; i++) {
+                    currentPath += '/' + parts[i];
+                    if (i === parts.length - 1) {
+                        html += `<li class="breadcrumb-item active">${parts[i]}</li>`;
+                    } else {
+                        html += `<li class="breadcrumb-item"><a href="#" onclick="loadDirectory('${currentPath}')">${parts[i]}</a></li>`;
+                    }
+                }
+            } else {
+                // Unix样式路径
+                const parts = path.split('/').filter(part => part !== '');
+                html = '<li class="breadcrumb-item"><a href="#" onclick="loadDirectory(\'/\')">根目录</a></li>';
+                let currentPath = '';
+                parts.forEach((part, index) => {
+                    currentPath += '/' + part;
+                    if (index === parts.length - 1) {
+                        html += `<li class="breadcrumb-item active">${part}</li>`;
+                    } else {
+                        html += `<li class="breadcrumb-item"><a href="#" onclick="loadDirectory('${currentPath}')">${part}</a></li>`;
+                    }
+                });
+            }
         }
-    });
+    } else {
+        // 远程模式保持原逻辑
+        const parts = path.split('/').filter(part => part !== '');
+        html = '<li class="breadcrumb-item"><a href="#" onclick="loadDirectory(\'/\')">根目录</a></li>';
+        let currentPath = '';
+        parts.forEach((part, index) => {
+            currentPath += '/' + part;
+            if (index === parts.length - 1) {
+                html += `<li class="breadcrumb-item active">${part}</li>`;
+            } else {
+                html += `<li class="breadcrumb-item"><a href="#" onclick="loadDirectory('${currentPath}')">${part}</a></li>`;
+            }
+        });
+    }
 
     breadcrumb.innerHTML = html;
     
@@ -140,6 +211,26 @@ function navigateToPath() {
 
 // 导航到上级目录
 function navigateToParent() {
+    if (currentMode === 'local') {
+        // Windows路径特殊处理
+        const isWindowsPath = /^[A-Z]:/i.test(currentPath);
+        if (isWindowsPath) {
+            const parts = currentPath.split('/').filter(part => part !== '');
+            if (parts.length === 1) {
+                // 从驱动器根目录返回到驱动器列表
+                loadDirectory('drives');
+                return;
+            } else {
+                // 返回上一级目录
+                parts.pop();
+                const parentPath = parts.join('/') + (parts.length === 1 ? '/' : '');
+                loadDirectory(parentPath);
+                return;
+            }
+        }
+    }
+    
+    // 默认处理（Linux/远程模式）
     const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/')) || '/';
     loadDirectory(parentPath);
 }
@@ -162,7 +253,17 @@ function browseForFile() {
     currentBrowsingInput = 'editorFilePath';
     
     // 初始化路径
-    const defaultPath = currentMode === 'remote' ? '/' : (currentPath || '/');
+    let defaultPath;
+    if (currentMode === 'local') {
+        // 检查是否是Windows系统
+        if (navigator.platform.toLowerCase().includes('win')) {
+            defaultPath = currentPath || 'drives'; // Windows显示驱动器列表
+        } else {
+            defaultPath = currentPath || '/'; // Linux/Mac显示根目录
+        }
+    } else {
+        defaultPath = '/'; // 远程模式显示根目录
+    }
     
     // 初始化路径输入框
     const pathInput = document.getElementById('directPathInput');
