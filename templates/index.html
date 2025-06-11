@@ -3,16 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SSH 文件管理器 - 重复文件检测与删除</title>
+    <title>统一文件管理器 - 本地和远程文件管理</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        .connection-status {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
+        /* 顶部导航栏 */
+        .top-navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
+        
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white !important;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+        }
+        
+        .mode-toggle {
+            display: flex;
+            align-items: center;
+            margin-right: 2rem;
+        }
+        
+        .mode-toggle .btn {
+            margin: 0 0.25rem;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .mode-toggle .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .mode-toggle .btn.active {
+            background: rgba(255, 255, 255, 0.9);
+            color: #667eea;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* 功能菜单 */
+        .function-menu {
+            background: white;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            min-height: calc(100vh - 80px);
+            width: 250px;
+            position: fixed;
+            left: 0;
+            top: 80px;
+            z-index: 100;
+        }
+        
+        .function-tabs {
+            display: flex;
+            flex-direction: column;
+            padding: 1rem 0;
+        }
+        
+        .function-tab {
+            background: none;
+            border: none;
+            padding: 1rem 1.5rem;
+            color: #6c757d;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+            text-align: left;
+            border-radius: 0;
+            margin: 0.25rem 1rem;
+        }
+        
+        .function-tab:hover {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            transform: translateX(5px);
+        }
+        
+        .function-tab.active {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            transform: translateX(5px);
+        }
+        
+        .function-tab.active::before {
+            content: '';
+            position: absolute;
+            left: -1rem;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 0 2px 2px 0;
+        }
+        
+        .function-tab.disabled {
+            color: #ccc;
+            cursor: not-allowed;
+            background: #f8f9fa;
+        }
+        
+        .function-tab.disabled:hover {
+            transform: none;
+            background: #f8f9fa;
+        }
+        
+        .function-panel {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .function-panel.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 文件相关样式 */
         .file-item {
             cursor: pointer;
             transition: background-color 0.2s;
@@ -20,15 +138,19 @@
         .file-item:hover {
             background-color: #f8f9fa;
         }
+        
         .loading {
             display: none;
         }
+        
         .duplicate-item {
             border-left: 4px solid #dc3545;
         }
+        
         .similar-item {
             border-left: 4px solid #ffc107;
         }
+        
         .batch-controls {
             background: #f8f9fa;
             border: 1px solid #dee2e6;
@@ -36,160 +158,679 @@
             padding: 1rem;
             margin-bottom: 1rem;
         }
+        
         .path-input {
             font-family: 'Courier New', monospace;
         }
+        
         .main-container {
-            margin-top: 20px;
+            margin-top: 0;
+            margin-left: 250px;
+            padding: 2rem;
         }
+        
+        .card {
+            border: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+        }
+        
         .card-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
+            border-radius: 0.375rem 0.375rem 0 0 !important;
         }
+        
         .btn-danger {
             background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
             border: none;
         }
+        
         .btn-primary {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: none;
         }
+        
         .btn-success {
             background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
             border: none;
         }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            border: none;
+        }
+        
+        .tree-output {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        /* 消息提示弹框 */
+        .message-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1050;
+            width: 350px;
+        }
+        
+        /* 自定义确认对话框 */
+        .custom-confirm-modal .modal-content {
+            border-radius: 15px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .custom-confirm-modal .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px 15px 0 0;
+            border-bottom: none;
+        }
+        
+        .custom-confirm-modal .modal-body {
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .custom-confirm-modal .modal-footer {
+            border-top: none;
+            padding: 1rem 2rem 2rem;
+            justify-content: center;
+        }
+        
+        .custom-confirm-modal .btn-confirm {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 0.75rem 2rem;
+            margin: 0 0.5rem;
+        }
+        
+        .custom-confirm-modal .btn-cancel {
+            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 0.75rem 2rem;
+            margin: 0 0.5rem;
+        }
+        
+        .danger-icon {
+            font-size: 3rem;
+            color: #ff6b6b;
+            margin-bottom: 1rem;
+        }
+        
+        .warning-icon {
+            font-size: 3rem;
+            color: #ffc107;
+            margin-bottom: 1rem;
+        }
+        
+        /* 操作日志面板 */
+        .operation-log {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 400px;
+            max-height: 300px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            z-index: 1040;
+            display: none;
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .log-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .log-content {
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 0;
+        }
+        
+        .log-item {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .log-item:last-child {
+            border-bottom: none;
+        }
+        
+        .log-item.success {
+            background: rgba(40, 167, 69, 0.1);
+            border-left: 4px solid #28a745;
+        }
+        
+        .log-item.error {
+            background: rgba(220, 53, 69, 0.1);
+            border-left: 4px solid #dc3545;
+        }
+        
+        .log-item.warning {
+            background: rgba(255, 193, 7, 0.1);
+            border-left: 4px solid #ffc107;
+        }
+        
+        .log-actions {
+            padding: 1rem;
+            text-align: center;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .undo-btn {
+            background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+            border: none;
+            border-radius: 20px;
+            padding: 0.5rem 1.5rem;
+            color: white;
+            font-size: 0.875rem;
+            margin: 0 0.25rem;
+        }
+        
+        .clear-log-btn {
+            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+            border: none;
+            border-radius: 20px;
+            padding: 0.5rem 1.5rem;
+            color: white;
+            font-size: 0.875rem;
+            margin: 0 0.25rem;
+        }
+        
+        /* 浮动操作日志按钮 */
+        .floating-log-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            z-index: 1030;
+            transition: all 0.3s ease;
+        }
+        
+        .floating-log-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .floating-log-btn .badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-size: 0.75rem;
+        }
+        
+        .message-toast {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            margin-bottom: 10px;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        }
+        
+        .message-toast.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        .message-toast .toast-header {
+            border-bottom: 1px solid #e9ecef;
+            padding: 12px 16px;
+            background: transparent;
+        }
+        
+        .message-toast .toast-body {
+            padding: 12px 16px;
+        }
+        
+        .message-toast.success .toast-header {
+            color: #155724;
+            background: rgba(40, 167, 69, 0.1);
+        }
+        
+        .message-toast.danger .toast-header {
+            color: #721c24;
+            background: rgba(220, 53, 69, 0.1);
+        }
+        
+        .message-toast.warning .toast-header {
+            color: #856404;
+            background: rgba(255, 193, 7, 0.1);
+        }
+        
+        .message-toast.info .toast-header {
+            color: #0c5460;
+            background: rgba(23, 162, 184, 0.1);
+        }
     </style>
 </head>
 <body class="bg-light">
-    <!-- 连接状态指示器 -->
-    <div class="connection-status">
-        <span id="connectionBadge" class="badge bg-danger">
-            <i class="bi bi-wifi-off"></i> 未连接
-        </span>
+    <!-- 顶部导航栏 -->
+    <nav class="top-navbar">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="navbar-brand">
+                    <i class="bi bi-files"></i> 统一文件管理器
+                </div>
+                <div class="d-flex align-items-center">
+                    <!-- 模式切换按钮 -->
+                    <div class="mode-toggle">
+                        <button type="button" id="localModeBtn" class="btn">
+                            <i class="bi bi-laptop"></i> 本地模式
+                        </button>
+                        <button type="button" id="remoteModeBtn" class="btn">
+                            <i class="bi bi-cloud"></i> 远程模式
+                        </button>
+                    </div>
+                    <!-- 连接状态指示器 -->
+                    <div class="connection-status">
+                        <span id="connectionBadge" class="badge bg-danger">
+                            <i class="bi bi-wifi-off"></i> 未连接
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 功能菜单 -->
+    <div class="function-menu">
+        <div class="function-tabs">
+            <button class="function-tab active" data-function="connection">
+                <i class="bi bi-plug"></i> 连接管理
+            </button>
+            <button class="function-tab" data-function="tools">
+                <i class="bi bi-tools"></i> 本地工具
+            </button>
+            <button class="function-tab" data-function="compare">
+                <i class="bi bi-search"></i> 目录比较
+            </button>
+            <button class="function-tab" data-function="tree">
+                <i class="bi bi-tree-fill"></i> 目录树
+            </button>
+            <button class="function-tab" data-function="clean">
+                <i class="bi bi-trash"></i> 空目录清理
+            </button>
+        </div>
+    </div>
+
+    <!-- 消息提示容器 -->
+    <div class="message-container" id="messageContainer"></div>
+
+    <!-- 自定义确认对话框 -->
+    <div class="modal fade custom-confirm-modal" id="customConfirmModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmModalTitle">
+                        <i class="bi bi-exclamation-triangle"></i> 确认操作
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="confirmModalIcon"></div>
+                    <div id="confirmModalMessage"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-cancel text-white" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> 取消
+                    </button>
+                    <button type="button" class="btn btn-confirm text-white" id="confirmModalOkBtn">
+                        <i class="bi bi-check-circle"></i> 确认
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 操作日志面板 -->
+    <div class="operation-log" id="operationLog">
+        <div class="log-header">
+            <div>
+                <i class="bi bi-clock-history"></i> 操作日志
+            </div>
+            <div>
+                <button class="btn btn-sm text-white" onclick="toggleOperationLog()" style="background: none; border: none;">
+                    <i class="bi bi-dash-square"></i>
+                </button>
+            </div>
+        </div>
+        <div class="log-content" id="logContent"></div>
+        <div class="log-actions">
+            <button class="undo-btn" onclick="undoLastOperation()" id="undoBtn" disabled>
+                <i class="bi bi-arrow-counterclockwise"></i> 撤销
+            </button>
+            <button class="clear-log-btn" onclick="clearOperationLog()">
+                <i class="bi bi-trash"></i> 清空
+            </button>
+            <button class="clear-log-btn" onclick="toggleOperationLog()">
+                <i class="bi bi-eye-slash"></i> 隐藏
+            </button>
+        </div>
+    </div>
+
+    <!-- 浮动操作日志按钮 -->
+    <div class="floating-log-btn" id="floatingLogBtn" onclick="showOperationLog()">
+        <i class="bi bi-clock-history"></i>
+        <span class="badge bg-danger" id="logCount" style="display: none;">0</span>
     </div>
 
     <div class="container main-container">
-        <div class="row">
-            <div class="col-12">
-                <div class="text-center mb-4">
-                    <h1 class="display-4 text-primary">
-                        <i class="bi bi-server"></i> SSH 文件管理器
-                    </h1>
-                    <p class="lead text-muted">远程重复文件检测与删除工具</p>
+
+        <!-- 连接管理面板 -->
+        <div class="function-panel active" id="connectionPanel">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-plug"></i> SSH 服务器连接
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="connectionForm">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label for="hostname" class="form-label">服务器地址</label>
+                                            <input type="text" class="form-control" id="hostname" placeholder="192.168.1.100" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label for="username" class="form-label">用户名</label>
+                                            <input type="text" class="form-control" id="username" placeholder="root" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label for="password" class="form-label">密码</label>
+                                            <input type="password" class="form-control" id="password" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="mb-3">
+                                            <label for="port" class="form-label">端口</label>
+                                            <input type="number" class="form-control" id="port" value="22">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="mb-3">
+                                            <label class="form-label">&nbsp;</label>
+                                            <div>
+                                                <button type="button" id="connectBtn" class="btn btn-primary w-100">
+                                                    <i class="bi bi-plug"></i> 连接
+                                                </button>
+                                                <button type="button" id="disconnectBtn" class="btn btn-danger w-100" style="display:none;">
+                                                    <i class="bi bi-plug-fill"></i> 断开
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- SSH 连接面板 -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card shadow">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="bi bi-plug"></i> SSH 服务器连接
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <form id="connectionForm">
+        <!-- 本地工具面板 -->
+        <div class="function-panel" id="toolsPanel">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-tools"></i> 本地工具集
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info" role="alert">
+                                <i class="bi bi-info-circle"></i>
+                                本地工具集仅在本地模式下可用，可以对本地文件系统进行操作。
+                            </div>
                             <div class="row">
-                                <div class="col-md-3">
+                                <div class="col-md-6">
+                                    <h6><i class="bi bi-tree"></i> 目录树生成</h6>
+                                    <p class="text-muted small">生成指定目录的树形结构图</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6><i class="bi bi-trash"></i> 空目录清理</h6>
+                                    <p class="text-muted small">清理指定目录下的所有空目录</p>
+                                </div>
+                            </div>
+                            <p class="text-muted">请通过左侧菜单访问具体工具功能。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 目录比较面板 -->
+        <div class="function-panel" id="comparePanel">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-search"></i> 目录比较
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
                                     <div class="mb-3">
-                                        <label for="hostname" class="form-label">服务器地址</label>
-                                        <input type="text" class="form-control" id="hostname" placeholder="192.168.1.100" required>
+                                        <label for="path1" class="form-label">路径 1</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control path-input" id="path1" placeholder="/home/user/folder1">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="browsePath('path1')">
+                                                <i class="bi bi-folder"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-md-4">
                                     <div class="mb-3">
-                                        <label for="username" class="form-label">用户名</label>
-                                        <input type="text" class="form-control" id="username" placeholder="root" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="mb-3">
-                                        <label for="password" class="form-label">密码</label>
-                                        <input type="password" class="form-control" id="password" required>
+                                        <label for="path2" class="form-label">路径 2</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control path-input" id="path2" placeholder="/home/user/folder2">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="browsePath('path2')">
+                                                <i class="bi bi-folder"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-md-2">
                                     <div class="mb-3">
-                                        <label for="port" class="form-label">端口</label>
-                                        <input type="number" class="form-control" id="port" value="22">
+                                        <label for="similarityThreshold" class="form-label">相似度阈值</label>
+                                        <select class="form-control" id="similarityThreshold">
+                                            <option value="0.6">60%</option>
+                                            <option value="0.7">70%</option>
+                                            <option value="0.8" selected>80%</option>
+                                            <option value="0.9">90%</option>
+                                            <option value="1.0">完全匹配</option>
+                                        </select>
                                     </div>
                                 </div>
-                                <div class="col-md-1">
+                                <div class="col-md-2">
                                     <div class="mb-3">
                                         <label class="form-label">&nbsp;</label>
                                         <div>
-                                            <button type="button" id="connectBtn" class="btn btn-primary w-100">
-                                                <i class="bi bi-plug"></i> 连接
-                                            </button>
-                                            <button type="button" id="disconnectBtn" class="btn btn-danger w-100" style="display:none;">
-                                                <i class="bi bi-plug-fill"></i> 断开
+                                            <button type="button" id="compareBtn" class="btn btn-success w-100">
+                                                <i class="bi bi-search"></i> 比较
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 路径比较面板 -->
-        <div class="row mb-4" id="comparePanel" style="display:none;">
-            <div class="col-12">
-                <div class="card shadow">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="bi bi-search"></i> 目录比较
-                        </h5>
+        <!-- 目录树面板 -->
+        <div class="function-panel" id="treePanel">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-tree"></i> 目录树生成
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="treeDirectory" class="form-label">目录路径</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control path-input" id="treeDirectory" placeholder="当前目录">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="browsePath('treeDirectory')">
+                                                <i class="bi bi-folder"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label for="maxLevel" class="form-label">最大层级</label>
+                                        <input type="number" class="form-control" id="maxLevel" placeholder="不限制">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label class="form-label">选项</label>
+                                        <div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="checkbox" id="applyGitignore" checked>
+                                                <label class="form-check-label" for="applyGitignore">
+                                                    应用 .gitignore
+                                                </label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="checkbox" id="excludeFiles">
+                                                <label class="form-check-label" for="excludeFiles">
+                                                    仅显示目录
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label class="form-label">&nbsp;</label>
+                                        <div>
+                                            <button type="button" id="generateTreeBtn" class="btn btn-success w-100">
+                                                <i class="bi bi-tree"></i> 生成目录树
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="path1" class="form-label">路径 1</label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control path-input" id="path1" placeholder="/home/user/folder1">
-                                        <button class="btn btn-outline-secondary" type="button" onclick="browsePath('path1')">
-                                            <i class="bi bi-folder"></i>
-                                        </button>
+                </div>
+            </div>
+            
+            <!-- 目录树输出 -->
+            <div class="row mb-4" id="treeOutputPanel" style="display:none;">
+                <div class="col-12">
+                    <div class="card shadow">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-tree-fill"></i> 目录树结构
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="treeOutput" class="tree-output"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 空目录清理面板 -->
+        <div class="function-panel" id="cleanPanel">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-trash"></i> 空目录清理
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="cleanDirectory" class="form-label">清理目录</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control path-input" id="cleanDirectory" placeholder="当前目录">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="browsePath('cleanDirectory')">
+                                                <i class="bi bi-folder"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">&nbsp;</label>
+                                        <div>
+                                            <button type="button" id="cleanEmptyDirsBtn" class="btn btn-warning w-100">
+                                                <i class="bi bi-trash"></i> 清理空目录
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="path2" class="form-label">路径 2</label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control path-input" id="path2" placeholder="/home/user/folder2">
-                                        <button class="btn btn-outline-secondary" type="button" onclick="browsePath('path2')">
-                                            <i class="bi bi-folder"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="mb-3">
-                                    <label for="similarityThreshold" class="form-label">相似度阈值</label>
-                                    <select class="form-control" id="similarityThreshold">
-                                        <option value="0.6">60%</option>
-                                        <option value="0.7">70%</option>
-                                        <option value="0.8" selected>80%</option>
-                                        <option value="0.9">90%</option>
-                                        <option value="1.0">完全匹配</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="mb-3">
-                                    <label class="form-label">&nbsp;</label>
-                                    <div>
-                                        <button type="button" id="compareBtn" class="btn btn-success w-100">
-                                            <i class="bi bi-search"></i> 比较
-                                        </button>
-                                    </div>
-                                </div>
+                            <div class="alert alert-warning" role="alert">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                此操作将永久删除空目录，请谨慎操作！该功能在本地模式和远程模式下均可使用。
                             </div>
                         </div>
                     </div>
@@ -273,19 +914,454 @@
         let currentBrowsingInput = '';
         let currentPath = '/';
         let browseModal;
+        let customConfirmModal;
+        let currentMode = 'local';
+        let operationHistory = [];
+        let isLogVisible = false;
 
         document.addEventListener('DOMContentLoaded', function() {
             browseModal = new bootstrap.Modal(document.getElementById('browseModal'));
+            customConfirmModal = new bootstrap.Modal(document.getElementById('customConfirmModal'));
             
-            // 连接按钮事件
+            // 初始化页面状态
+            clearPreviousFunctionState();
+            
+            // 初始化模式
+            initializeMode();
+            
+            // 初始化功能菜单
+            initializeFunctionMenu();
+            
+            // 初始化浮动按钮
+            updateFloatingLogButton();
+            
+            // 定期检查连接状态
+            checkConnectionStatus();
+            setInterval(checkConnectionStatus, 5000);
+            
+            // 绑定事件
+            document.getElementById('localModeBtn').addEventListener('click', () => setMode('local'));
+            document.getElementById('remoteModeBtn').addEventListener('click', () => setMode('remote'));
             document.getElementById('connectBtn').addEventListener('click', connectSSH);
             document.getElementById('disconnectBtn').addEventListener('click', disconnectSSH);
             document.getElementById('compareBtn').addEventListener('click', comparePaths);
             document.getElementById('selectPathBtn').addEventListener('click', selectCurrentPath);
-            
-            // 检查连接状态
-            updateConnectionStatus({{ 'true' if connected else 'false' }});
+            document.getElementById('generateTreeBtn').addEventListener('click', generateTree);
+            document.getElementById('cleanEmptyDirsBtn').addEventListener('click', cleanEmptyDirectories);
         });
+
+        async function initializeMode() {
+            try {
+                const response = await fetch('/get_mode');
+                const result = await response.json();
+                currentMode = result.mode;
+                updateModeDisplay();
+            } catch (error) {
+                console.error('获取模式失败:', error);
+                setMode('local'); // 默认使用本地模式
+            }
+        }
+
+        async function setMode(mode) {
+            try {
+                const response = await fetch('/set_mode', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ mode: mode })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    currentMode = mode;
+                    updateModeDisplay();
+                    showMessage(result.message, 'success');
+                    checkConnectionStatus(); // 更新连接状态
+                    
+                    // 延迟执行以确保连接状态已更新
+                    setTimeout(() => {
+                        if (currentMode === 'remote') {
+                            updateRemoteFunctionAvailability();
+                        }
+                    }, 500);
+                } else {
+                    showMessage(result.message, 'danger');
+                }
+            } catch (error) {
+                showMessage('切换模式失败: ' + error.message, 'danger');
+            }
+        }
+
+        function initializeFunctionMenu() {
+            // 绑定功能菜单点击事件
+            const functionTabs = document.querySelectorAll('.function-tab');
+            functionTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const functionName = tab.dataset.function;
+                    switchFunction(functionName);
+                });
+            });
+        }
+
+        function switchFunction(functionName) {
+            const targetTab = document.querySelector(`[data-function="${functionName}"]`);
+            
+            // 检查是否为禁用状态
+            if (targetTab && targetTab.classList.contains('disabled')) {
+                showMessage('请先连接SSH服务器才能使用此功能', 'warning');
+                return;
+            }
+            
+            // 清除上一个功能的状态
+            clearPreviousFunctionState();
+            
+            // 更新选项卡状态
+            document.querySelectorAll('.function-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+            
+            // 切换面板显示
+            document.querySelectorAll('.function-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            
+            const targetPanel = document.getElementById(functionName + 'Panel');
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+            }
+        }
+
+        function clearPreviousFunctionState() {
+            // 隐藏所有结果面板
+            const resultPanels = [
+                'resultsPanel',      // 目录比较结果
+                'treeOutputPanel'    // 目录树输出
+            ];
+            
+            resultPanels.forEach(panelId => {
+                const panel = document.getElementById(panelId);
+                if (panel) {
+                    panel.style.display = 'none';
+                }
+            });
+            
+            // 清除结果内容
+            const resultContainers = [
+                'duplicatesList',    // 重复文件列表
+                'treeOutput'         // 目录树内容
+            ];
+            
+            resultContainers.forEach(containerId => {
+                const container = document.getElementById(containerId);
+                if (container) {
+                    container.innerHTML = '';
+                }
+            });
+            
+            // 清除计数显示
+            const countElements = [
+                'duplicateCount',    // 重复文件计数
+                'selectedCount'      // 选中项计数
+            ];
+            
+            countElements.forEach(elementId => {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.textContent = '';
+                }
+            });
+            
+            // 清除所有输入框内容
+            const inputFields = [
+                'path1',             // 比较路径1
+                'path2',             // 比较路径2
+                'treeDirectory',     // 目录树路径
+                'cleanDirectory'     // 清理目录路径
+            ];
+            
+            inputFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.value = '';
+                }
+            });
+            
+            // 重置复选框和下拉框
+            const checkboxes = [
+                'applyGitignore',    // 应用gitignore
+                'excludeFiles',      // 排除文件
+                'selectAll'          // 全选
+            ];
+            
+            checkboxes.forEach(checkboxId => {
+                const checkbox = document.getElementById(checkboxId);
+                if (checkbox) {
+                    if (checkboxId === 'applyGitignore') {
+                        checkbox.checked = true;  // 默认选中
+                    } else {
+                        checkbox.checked = false;
+                    }
+                }
+            });
+            
+            // 重置下拉框
+            const selectFields = [
+                'similarityThreshold' // 相似度阈值
+            ];
+            
+            selectFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.selectedIndex = 2; // 默认选择80%
+                }
+            });
+            
+            // 重置数字输入框
+            const numberFields = [
+                'maxLevel'           // 最大层级
+            ];
+            
+            numberFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.value = '';
+                }
+            });
+            
+            // 隐藏批量控制区
+            const batchControls = document.getElementById('batchControls');
+            if (batchControls) {
+                batchControls.style.display = 'none';
+            }
+            
+            // 清除全局数据
+            if (typeof duplicatesData !== 'undefined') {
+                duplicatesData = [];
+            }
+        }
+
+        function updateModeDisplay() {
+            // 更新按钮状态
+            document.getElementById('localModeBtn').classList.toggle('active', currentMode === 'local');
+            document.getElementById('remoteModeBtn').classList.toggle('active', currentMode === 'remote');
+            
+            // 清除上一个模式的状态
+            clearPreviousFunctionState();
+            
+            // 根据模式显示/隐藏功能选项卡
+            updateFunctionMenuForMode();
+        }
+
+        function updateFunctionMenuForMode() {
+            const connectionTab = document.querySelector('[data-function="connection"]');
+            const toolsTab = document.querySelector('[data-function="tools"]');
+            const compareTab = document.querySelector('[data-function="compare"]');
+            const treeTab = document.querySelector('[data-function="tree"]');
+            const cleanTab = document.querySelector('[data-function="clean"]');
+            
+            if (currentMode === 'local') {
+                // 本地模式：隐藏连接管理，显示所有其他功能
+                connectionTab.style.display = 'none';
+                toolsTab.style.display = 'block';
+                compareTab.style.display = 'block';
+                treeTab.style.display = 'block';
+                cleanTab.style.display = 'block';
+                
+                // 移除所有禁用状态
+                [toolsTab, compareTab, treeTab, cleanTab].forEach(tab => {
+                    tab.classList.remove('disabled');
+                    tab.style.pointerEvents = 'auto';
+                });
+                
+                // 如果当前在连接管理面板，切换到目录比较
+                if (connectionTab.classList.contains('active')) {
+                    switchFunction('compare');
+                }
+            } else {
+                // 远程模式：显示连接管理，其他功能根据连接状态控制
+                connectionTab.style.display = 'block';
+                toolsTab.style.display = 'none'; // 本地工具在远程模式下隐藏
+                compareTab.style.display = 'block';
+                treeTab.style.display = 'block';
+                cleanTab.style.display = 'block';
+                
+                // 如果当前在本地工具面板，切换到连接管理
+                if (toolsTab.classList.contains('active')) {
+                    switchFunction('connection');
+                }
+                
+                // 根据连接状态更新功能可用性
+                updateRemoteFunctionAvailability();
+            }
+        }
+
+        function updateRemoteFunctionAvailability() {
+            if (currentMode !== 'remote') return;
+            
+            // 检查当前连接状态
+            fetch('/connection_status')
+                .then(response => response.json())
+                .then(result => {
+                    const isConnected = result.connected;
+                    const compareTab = document.querySelector('[data-function="compare"]');
+                    const treeTab = document.querySelector('[data-function="tree"]');
+                    const cleanTab = document.querySelector('[data-function="clean"]');
+                    
+                    [compareTab, treeTab, cleanTab].forEach(tab => {
+                        if (isConnected) {
+                            tab.classList.remove('disabled');
+                            tab.style.pointerEvents = 'auto';
+                        } else {
+                            tab.classList.add('disabled');
+                            tab.style.pointerEvents = 'none';
+                        }
+                    });
+                    
+                    // 如果当前在被禁用的功能面板，且未连接，切换到连接管理
+                    if (!isConnected && 
+                        (compareTab.classList.contains('active') || 
+                         treeTab.classList.contains('active') || 
+                         cleanTab.classList.contains('active'))) {
+                        switchFunction('connection');
+                        showMessage('请先连接SSH服务器才能使用此功能', 'warning');
+                    }
+                })
+                .catch(error => {
+                    console.error('检查连接状态失败:', error);
+                });
+        }
+
+        async function checkConnectionStatus() {
+            try {
+                const response = await fetch('/connection_status');
+                const result = await response.json();
+                updateConnectionStatus(result.connected, result.mode);
+            } catch (error) {
+                console.error('检查连接状态失败:', error);
+            }
+        }
+
+        async function generateTree() {
+            const directory = document.getElementById('treeDirectory').value || null;
+            const applyGitignore = document.getElementById('applyGitignore').checked;
+            const excludeFiles = document.getElementById('excludeFiles').checked;
+            const maxLevel = document.getElementById('maxLevel').value || null;
+
+            showLoading();
+            try {
+                const response = await fetch('/tree', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        directory: directory,
+                        apply_gitignore: applyGitignore,
+                        exclude_files: excludeFiles,
+                        max_level: maxLevel ? parseInt(maxLevel) : null
+                    })
+                });
+
+                const result = await response.json();
+                hideLoading();
+
+                if (result.success) {
+                    // 隐藏其他功能的结果面板
+                    document.getElementById('resultsPanel').style.display = 'none';
+                    
+                    document.getElementById('treeOutput').textContent = result.result;
+                    document.getElementById('treeOutputPanel').style.display = 'block';
+                    showMessage('目录树生成成功！', 'success');
+                } else {
+                    showMessage(result.result, 'danger');
+                }
+            } catch (error) {
+                hideLoading();
+                showMessage('生成目录树失败: ' + error.message, 'danger');
+            }
+        }
+
+        async function cleanEmptyDirectories() {
+            const directory = document.getElementById('cleanDirectory').value || null;
+            const directoryText = directory || '当前工作目录';
+            
+            const confirmed = await showCustomConfirm(
+                `确定要清理以下目录中的空目录吗？<br><br><code>${directoryText}</code><br><br><strong>此操作会删除所有空目录，操作不可撤销！</strong>`,
+                '清理空目录确认',
+                'warning'
+            );
+            
+            if (!confirmed) {
+                return;
+            }
+
+            showLoading();
+            addOperationLog('空目录清理', `开始清理空目录: ${directoryText}`, 'warning');
+            
+            try {
+                const response = await fetch('/clean_empty_dirs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        directory: directory
+                    })
+                });
+
+                const result = await response.json();
+                hideLoading();
+
+                if (result.success) {
+                    // 隐藏其他功能的结果面板
+                    document.getElementById('resultsPanel').style.display = 'none';
+                    document.getElementById('treeOutputPanel').style.display = 'none';
+                    
+                    // 提取清理的目录数量
+                    const cleanedDirs = result.cleaned_directories || [];
+                    const cleanedCount = cleanedDirs.length;
+                    
+                    if (cleanedCount > 0) {
+                        // 记录撤销数据
+                        const undoData = {
+                            type: 'clean_empty_dirs',
+                            data: cleanedDirs
+                        };
+                        
+                        addOperationLog(
+                            '空目录清理', 
+                            `成功清理 ${cleanedCount} 个空目录`, 
+                            'success', 
+                            undoData
+                        );
+                        
+                        // 详细记录清理的目录
+                        cleanedDirs.slice(0, 10).forEach(dir => {
+                            addOperationLog('清理详情', `已删除空目录: ${dir}`, 'success');
+                        });
+                        
+                        if (cleanedDirs.length > 10) {
+                            addOperationLog('清理详情', `还有 ${cleanedDirs.length - 10} 个目录...`, 'success');
+                        }
+                    } else {
+                        addOperationLog('空目录清理', '没有发现需要清理的空目录', 'success');
+                    }
+                    
+                    showMessage(result.result, 'success');
+                } else {
+                    addOperationLog('空目录清理', `清理失败: ${result.result}`, 'error');
+                    showMessage(result.result, 'danger');
+                }
+            } catch (error) {
+                hideLoading();
+                addOperationLog('空目录清理', `清理异常: ${error.message}`, 'error');
+                showMessage('清理空目录失败: ' + error.message, 'danger');
+            }
+        }
 
         function showLoading() {
             document.getElementById('loadingSpinner').style.display = 'block';
@@ -296,37 +1372,325 @@
         }
 
         function showMessage(message, type = 'info') {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-            alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.container').firstChild);
+            const messageContainer = document.getElementById('messageContainer');
+            const toastId = 'toast-' + Date.now();
             
+            const toastDiv = document.createElement('div');
+            toastDiv.id = toastId;
+            toastDiv.className = `message-toast ${type}`;
+            
+            // 根据类型设置图标
+            let icon = 'bi-info-circle';
+            let title = '提示';
+            switch(type) {
+                case 'success':
+                    icon = 'bi-check-circle';
+                    title = '成功';
+                    break;
+                case 'danger':
+                    icon = 'bi-exclamation-triangle';
+                    title = '错误';
+                    break;
+                case 'warning':
+                    icon = 'bi-exclamation-triangle';
+                    title = '警告';
+                    break;
+                case 'info':
+                    icon = 'bi-info-circle';
+                    title = '信息';
+                    break;
+            }
+            
+            toastDiv.innerHTML = `
+                <div class="toast-header">
+                    <i class="bi ${icon} me-2"></i>
+                    <strong class="me-auto">${title}</strong>
+                    <button type="button" class="btn-close" onclick="hideMessage('${toastId}')"></button>
+                </div>
+                <div class="toast-body">
+                    ${message}
+                </div>
+            `;
+            
+            messageContainer.appendChild(toastDiv);
+            
+            // 触发显示动画
             setTimeout(() => {
-                alertDiv.remove();
+                toastDiv.classList.add('show');
+            }, 100);
+            
+            // 自动隐藏
+            setTimeout(() => {
+                hideMessage(toastId);
             }, 5000);
         }
 
-        function updateConnectionStatus(connected) {
+        function hideMessage(toastId) {
+            const toast = document.getElementById(toastId);
+            if (toast) {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            }
+        }
+        
+        // 自定义确认对话框
+        function showCustomConfirm(message, title = '确认操作', type = 'warning') {
+            return new Promise((resolve) => {
+                const modalTitle = document.getElementById('confirmModalTitle');
+                const modalIcon = document.getElementById('confirmModalIcon');
+                const modalMessage = document.getElementById('confirmModalMessage');
+                const okBtn = document.getElementById('confirmModalOkBtn');
+                
+                // 设置标题
+                modalTitle.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${title}`;
+                
+                // 设置图标
+                if (type === 'danger') {
+                    modalIcon.innerHTML = '<i class="danger-icon bi bi-exclamation-triangle-fill"></i>';
+                } else {
+                    modalIcon.innerHTML = '<i class="warning-icon bi bi-exclamation-triangle-fill"></i>';
+                }
+                
+                // 设置消息内容
+                modalMessage.innerHTML = message;
+                
+                // 移除之前的事件监听器
+                const newOkBtn = okBtn.cloneNode(true);
+                okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+                
+                // 添加新的事件监听器
+                newOkBtn.addEventListener('click', () => {
+                    customConfirmModal.hide();
+                    resolve(true);
+                });
+                
+                // 处理取消操作
+                const handleCancel = () => {
+                    customConfirmModal.hide();
+                    resolve(false);
+                };
+                
+                // 绑定取消事件
+                document.querySelector('#customConfirmModal .btn-cancel').onclick = handleCancel;
+                document.querySelector('#customConfirmModal .btn-close').onclick = handleCancel;
+                
+                // 显示对话框
+                customConfirmModal.show();
+            });
+        }
+        
+        // 操作日志系统
+        function addOperationLog(operation, description, status = 'success', undoData = null) {
+            const timestamp = new Date().toLocaleString();
+            const logEntry = {
+                id: Date.now(),
+                operation,
+                description,
+                status,
+                timestamp,
+                undoData
+            };
+            
+            operationHistory.unshift(logEntry);
+            
+            // 限制历史记录数量
+            if (operationHistory.length > 50) {
+                operationHistory = operationHistory.slice(0, 50);
+            }
+            
+            updateLogDisplay();
+            updateUndoButton();
+            
+            // 自动显示日志面板（如果有新的操作）
+            if (!isLogVisible && status !== 'error') {
+                showOperationLog();
+            }
+        }
+        
+        function updateLogDisplay() {
+            const logContent = document.getElementById('logContent');
+            if (!logContent) return;
+            
+            logContent.innerHTML = '';
+            
+            operationHistory.forEach((entry, index) => {
+                const logItem = document.createElement('div');
+                logItem.className = `log-item ${entry.status}`;
+                
+                const statusIcon = entry.status === 'success' ? 'bi-check-circle' : 
+                                 entry.status === 'error' ? 'bi-x-circle' : 'bi-exclamation-triangle';
+                
+                logItem.innerHTML = `
+                    <div>
+                        <i class="bi ${statusIcon}"></i>
+                        <strong>${entry.operation}:</strong> ${entry.description}
+                        <small class="text-muted d-block">${entry.timestamp}</small>
+                    </div>
+                    ${entry.undoData && index === 0 ? 
+                        `<button class="btn btn-sm undo-btn" onclick="undoOperation(${entry.id})" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </button>` : ''
+                    }
+                `;
+                
+                logContent.appendChild(logItem);
+            });
+            
+            // 更新浮动按钮的计数
+            updateFloatingLogButton();
+        }
+        
+        function updateUndoButton() {
+            const undoBtn = document.getElementById('undoBtn');
+            if (undoBtn) {
+                const hasUndoableOperation = operationHistory.length > 0 && operationHistory[0].undoData;
+                undoBtn.disabled = !hasUndoableOperation;
+            }
+        }
+        
+        function showOperationLog() {
+            const logPanel = document.getElementById('operationLog');
+            logPanel.style.display = 'block';
+            isLogVisible = true;
+            updateFloatingLogButton();
+        }
+        
+        function hideOperationLog() {
+            const logPanel = document.getElementById('operationLog');
+            logPanel.style.display = 'none';
+            isLogVisible = false;
+            updateFloatingLogButton();
+        }
+        
+        function updateFloatingLogButton() {
+            const floatingBtn = document.getElementById('floatingLogBtn');
+            const logCount = document.getElementById('logCount');
+            
+            if (isLogVisible) {
+                floatingBtn.style.display = 'none';
+            } else {
+                floatingBtn.style.display = 'flex';
+                
+                if (operationHistory.length > 0) {
+                    logCount.textContent = operationHistory.length;
+                    logCount.style.display = 'block';
+                } else {
+                    logCount.style.display = 'none';
+                }
+            }
+        }
+        
+        function toggleOperationLog() {
+            if (isLogVisible) {
+                hideOperationLog();
+            } else {
+                showOperationLog();
+            }
+        }
+        
+        function clearOperationLog() {
+            operationHistory = [];
+            updateLogDisplay();
+            updateUndoButton();
+            updateFloatingLogButton();
+        }
+        
+        function undoLastOperation() {
+            if (operationHistory.length > 0 && operationHistory[0].undoData) {
+                undoOperation(operationHistory[0].id);
+            }
+        }
+        
+        function undoOperation(operationId) {
+            const operation = operationHistory.find(op => op.id === operationId);
+            if (!operation || !operation.undoData) {
+                showMessage('无法撤销此操作', 'error');
+                return;
+            }
+            
+            // 执行撤销操作
+            performUndo(operation.undoData)
+                .then(() => {
+                    addOperationLog('撤销操作', `已撤销: ${operation.description}`, 'success');
+                    // 从历史记录中移除已撤销的操作
+                    operationHistory = operationHistory.filter(op => op.id !== operationId);
+                    updateLogDisplay();
+                    updateUndoButton();
+                    showMessage('操作已成功撤销', 'success');
+                })
+                .catch(error => {
+                    addOperationLog('撤销失败', `撤销操作失败: ${error.message}`, 'error');
+                    showMessage(`撤销操作失败: ${error.message}`, 'error');
+                });
+        }
+        
+        function performUndo(undoData) {
+            return new Promise((resolve, reject) => {
+                const { type, data } = undoData;
+                
+                switch (type) {
+                    case 'delete_files':
+                        // 恢复已删除的文件（理论上需要备份机制）
+                        reject(new Error('文件删除操作无法撤销'));
+                        break;
+                        
+                    case 'clean_empty_dirs':
+                        // 重新创建已删除的空目录
+                        restoreEmptyDirectories(data)
+                            .then(resolve)
+                            .catch(reject);
+                        break;
+                        
+                    default:
+                        reject(new Error('不支持的撤销操作类型'));
+                }
+            });
+        }
+        
+        function restoreEmptyDirectories(directories) {
+            return fetch('/restore_directories', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    directories: directories,
+                    mode: currentMode
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || '恢复目录失败');
+                }
+            });
+        }
+
+        function updateConnectionStatus(connected, mode = currentMode) {
             const badge = document.getElementById('connectionBadge');
             const connectBtn = document.getElementById('connectBtn');
             const disconnectBtn = document.getElementById('disconnectBtn');
-            const comparePanel = document.getElementById('comparePanel');
             
-            if (connected) {
+            if (mode === 'local') {
+                badge.className = 'badge bg-info';
+                badge.innerHTML = '<i class="bi bi-laptop"></i> 本地模式';
+                connectBtn.style.display = 'none';
+                disconnectBtn.style.display = 'none';
+            } else if (connected) {
                 badge.className = 'badge bg-success';
-                badge.innerHTML = '<i class="bi bi-wifi"></i> 已连接';
+                badge.innerHTML = '<i class="bi bi-wifi"></i> 远程已连接';
                 connectBtn.style.display = 'none';
                 disconnectBtn.style.display = 'block';
-                comparePanel.style.display = 'block';
             } else {
                 badge.className = 'badge bg-danger';
-                badge.innerHTML = '<i class="bi bi-wifi-off"></i> 未连接';
+                badge.innerHTML = '<i class="bi bi-wifi-off"></i> 远程未连接';
                 connectBtn.style.display = 'block';
                 disconnectBtn.style.display = 'none';
-                comparePanel.style.display = 'none';
+                // 隐藏结果面板，因为未连接时无法进行比较
                 document.getElementById('resultsPanel').style.display = 'none';
             }
         }
@@ -362,6 +1726,7 @@
 
                 if (result.success) {
                     updateConnectionStatus(true);
+                    updateRemoteFunctionAvailability(); // 更新远程功能可用性
                     showMessage(result.message, 'success');
                 } else {
                     showMessage(result.message, 'danger');
@@ -379,6 +1744,7 @@
                 });
                 const result = await response.json();
                 updateConnectionStatus(false);
+                updateRemoteFunctionAvailability(); // 更新远程功能可用性
                 showMessage(result.message, 'info');
             } catch (error) {
                 showMessage('断开连接失败: ' + error.message, 'danger');
@@ -405,7 +1771,7 @@
                     body: JSON.stringify({
                         path1: path1,
                         path2: path2,
-                        similarity_threshold: similarityThreshold
+                        threshold: similarityThreshold
                     })
                 });
 
@@ -413,6 +1779,9 @@
                 hideLoading();
 
                 if (result.success) {
+                    // 隐藏其他功能的结果面板
+                    document.getElementById('treeOutputPanel').style.display = 'none';
+                    
                     displayDuplicates(result.duplicates);
                     showMessage(result.message, 'success');
                 } else {
@@ -432,6 +1801,12 @@
             const duplicatesList = document.getElementById('duplicatesList');
             const duplicateCount = document.getElementById('duplicateCount');
             const batchControls = document.getElementById('batchControls');
+            
+            // 重置全选状态
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
+            }
 
             const exactCount = duplicates.filter(d => d.match_type === 'exact').length;
             const similarCount = duplicates.filter(d => d.match_type === 'similar').length;
@@ -515,11 +1890,19 @@
         }
 
         async function deleteFile(path, index) {
-            if (!confirm(`确定要删除 ${path} 吗？此操作不可撤销！`)) {
+            const confirmed = await showCustomConfirm(
+                `确定要删除以下文件吗？<br><br><code>${path}</code><br><br><strong>此操作不可撤销！</strong>`,
+                '删除文件确认',
+                'danger'
+            );
+            
+            if (!confirmed) {
                 return;
             }
 
             showLoading();
+            addOperationLog('文件删除', `开始删除: ${path}`, 'warning');
+            
             try {
                 const response = await fetch('/delete', {
                     method: 'POST',
@@ -535,14 +1918,17 @@
                 hideLoading();
 
                 if (result.success) {
+                    addOperationLog('文件删除', `成功删除: ${path}`, 'success');
                     showMessage(result.message, 'success');
                     // 重新比较以更新列表
                     comparePaths();
                 } else {
+                    addOperationLog('文件删除', `删除失败: ${path} - ${result.message}`, 'error');
                     showMessage(result.message, 'danger');
                 }
             } catch (error) {
                 hideLoading();
+                addOperationLog('文件删除', `删除异常: ${path} - ${error.message}`, 'error');
                 showMessage('删除请求失败: ' + error.message, 'danger');
             }
         }
@@ -561,9 +1947,9 @@
                 const statusResponse = await fetch('/connection_status');
                 const statusResult = await statusResponse.json();
                 
-                if (!statusResult.connected) {
+                if (statusResult.mode === 'remote' && !statusResult.connected) {
                     showMessage('请先连接SSH服务器', 'warning');
-                    updateConnectionStatus(false);
+                    updateConnectionStatus(false, statusResult.mode);
                     return;
                 }
             } catch (error) {
@@ -572,7 +1958,8 @@
             }
             
             currentBrowsingInput = inputId;
-            currentPath = document.getElementById(inputId).value || '/';
+            const defaultPath = currentMode === 'local' ? '.' : '/';
+            currentPath = document.getElementById(inputId).value || defaultPath;
             loadDirectory(currentPath);
             browseModal.show();
         }
@@ -588,8 +1975,8 @@
                 } else {
                     showMessage(result.message, 'danger');
                     // 如果是连接问题，更新连接状态
-                    if (result.message.includes('请先连接SSH服务器')) {
-                        updateConnectionStatus(false);
+                    if (result.message.includes('请先连接SSH服务器') || result.message.includes('请先确保本地模式正常')) {
+                        updateConnectionStatus(false, currentMode);
                         browseModal.hide();
                     }
                 }
@@ -671,7 +2058,10 @@
 
         function updateSelectedCount() {
             const checked = document.querySelectorAll('.item-checkbox:checked').length;
-            document.getElementById('selectedCount').textContent = checked;
+            const selectedCountElement = document.getElementById('selectedCount');
+            if (selectedCountElement) {
+                selectedCountElement.textContent = checked;
+            }
         }
 
         function getSelectedPaths(pathType) {
@@ -696,12 +2086,20 @@
                 return;
             }
             
-            const confirmMessage = `确定要删除路径1中的 ${paths.length} 个项目吗？\n\n${paths.slice(0, 5).join('\n')}${paths.length > 5 ? '\n...' : ''}\n\n此操作不可撤销！`;
-            if (!confirm(confirmMessage)) {
+            const pathsPreview = paths.slice(0, 5).map(p => `<code>${p}</code>`).join('<br>');
+            const moreText = paths.length > 5 ? `<br><small class="text-muted">还有 ${paths.length - 5} 个项目...</small>` : '';
+            
+            const confirmed = await showCustomConfirm(
+                `确定要删除路径1中的 <strong>${paths.length}</strong> 个项目吗？<br><br>${pathsPreview}${moreText}<br><br><strong>此操作不可撤销！</strong>`,
+                '批量删除确认',
+                'danger'
+            );
+            
+            if (!confirmed) {
                 return;
             }
 
-            await performBatchDelete(paths);
+            await performBatchDelete(paths, 'path1');
         }
 
         async function batchDeletePath2() {
@@ -711,16 +2109,26 @@
                 return;
             }
             
-            const confirmMessage = `确定要删除路径2中的 ${paths.length} 个项目吗？\n\n${paths.slice(0, 5).join('\n')}${paths.length > 5 ? '\n...' : ''}\n\n此操作不可撤销！`;
-            if (!confirm(confirmMessage)) {
+            const pathsPreview = paths.slice(0, 5).map(p => `<code>${p}</code>`).join('<br>');
+            const moreText = paths.length > 5 ? `<br><small class="text-muted">还有 ${paths.length - 5} 个项目...</small>` : '';
+            
+            const confirmed = await showCustomConfirm(
+                `确定要删除路径2中的 <strong>${paths.length}</strong> 个项目吗？<br><br>${pathsPreview}${moreText}<br><br><strong>此操作不可撤销！</strong>`,
+                '批量删除确认',
+                'danger'
+            );
+            
+            if (!confirmed) {
                 return;
             }
 
-            await performBatchDelete(paths);
+            await performBatchDelete(paths, 'path2');
         }
 
-        async function performBatchDelete(paths) {
+        async function performBatchDelete(paths, pathType = 'unknown') {
             showLoading();
+            addOperationLog('批量删除', `开始批量删除 ${pathType} 中的 ${paths.length} 个项目`, 'warning');
+            
             try {
                 const response = await fetch('/batch_delete', {
                     method: 'POST',
@@ -736,25 +2144,33 @@
                 hideLoading();
 
                 if (result.success) {
-                    showMessage(result.message, 'success');
+                    const successCount = result.summary.success;
+                    const failedCount = result.summary.failed;
                     
-                    // 显示详细结果
-                    let detailMessage = `删除结果详情:\n`;
+                    addOperationLog(
+                        '批量删除', 
+                        `删除完成: 成功 ${successCount} 个，失败 ${failedCount} 个`,
+                        failedCount > 0 ? 'warning' : 'success'
+                    );
+                    
+                    showMessage(result.message, failedCount > 0 ? 'warning' : 'success');
+                    
+                    // 记录详细结果到操作日志
                     result.results.forEach(r => {
-                        detailMessage += `${r.success ? '✅' : '❌'} ${r.path}: ${r.message}\n`;
+                        if (!r.success) {
+                            addOperationLog('删除失败', `${r.path}: ${r.message}`, 'error');
+                        }
                     });
-                    
-                    if (result.summary.failed > 0) {
-                        console.log('批量删除详细结果:', detailMessage);
-                    }
                     
                     // 重新比较以更新列表
                     comparePaths();
                 } else {
+                    addOperationLog('批量删除', `批量删除失败: ${result.message}`, 'error');
                     showMessage(result.message, 'danger');
                 }
             } catch (error) {
                 hideLoading();
+                addOperationLog('批量删除', `批量删除异常: ${error.message}`, 'error');
                 showMessage('批量删除请求失败: ' + error.message, 'danger');
             }
         }
