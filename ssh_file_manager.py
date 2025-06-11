@@ -763,6 +763,318 @@ class FileManager:
             if parent and parent != path:
                 self._create_remote_directory(parent)
                 self.sftp.mkdir(path)
+    
+    def batch_rename(self, directory, rename_type, pattern=None, replacement=None, custom_text=None, sequence_position='prefix'):
+        """批量重命名文件和文件夹"""
+        if not directory:
+            return False, "请指定目录路径", []
+        
+        # 确保连接可用
+        connected, message = self.ensure_connected()
+        if not connected:
+            return False, message, []
+        
+        try:
+            items = self.list_directory(directory)
+            results = []
+            success_count = 0
+            failed_count = 0
+            
+            # 对文件进行排序，确保重命名顺序一致
+            items.sort(key=lambda x: (x['is_dir'], x['name'].lower()))
+            
+            # 为序号功能准备计数器
+            sequence_counter = 1
+            
+            for item in items:
+                old_name = item['name']
+                old_path = item['path']
+                
+                # 跳过 . 和 .. 目录
+                if old_name in ['.', '..']:
+                    continue
+                
+                try:
+                    new_name = self._apply_rename_rule(old_name, rename_type, pattern, replacement, custom_text, sequence_counter, sequence_position)
+                    
+                    if new_name and new_name != old_name:
+                        # 构建新路径
+                        if self.mode == 'local':
+                            new_path = os.path.join(directory, new_name)
+                            os.rename(old_path, new_path)
+                        else:
+                            new_path = os.path.join(directory, new_name).replace('\\', '/')
+                            self.sftp.rename(old_path, new_path)
+                        
+                        results.append({
+                            'success': True,
+                            'old_name': old_name,
+                            'new_name': new_name,
+                            'message': '重命名成功'
+                        })
+                        success_count += 1
+                        sequence_counter += 1
+                    else:
+                        results.append({
+                            'success': True,
+                            'old_name': old_name, 
+                            'new_name': old_name,
+                            'message': '无需重命名'
+                        })
+                
+                except Exception as e:
+                    results.append({
+                        'success': False,
+                        'old_name': old_name,
+                        'new_name': old_name,
+                        'message': f'重命名失败: {str(e)}'
+                    })
+                    failed_count += 1
+            
+            overall_success = failed_count == 0
+            summary_message = f'批量重命名完成：成功 {success_count} 个，失败 {failed_count} 个'
+            
+            return overall_success, summary_message, results
+            
+        except Exception as e:
+            return False, f"批量重命名操作失败: {str(e)}", []
+    
+    def _apply_rename_rule(self, filename, rename_type, pattern=None, replacement=None, custom_text=None, sequence_num=1, sequence_position='prefix'):
+        """应用重命名规则"""
+        original_name = filename
+        name, ext = os.path.splitext(filename)
+        
+        try:
+            if rename_type == 'remove_number_prefix':
+                # 移除数字前缀：例如 "01 文件.txt" -> "文件.txt"
+                new_name = re.sub(r'^\d+\s*[-_]?\s*', '', name)
+                return new_name + ext
+            
+            elif rename_type == 'add_sequence_prefix':
+                # 添加序号前缀：例如 "文件.txt" -> "001_文件.txt"
+                return f"{sequence_num:03d}_{filename}"
+            
+            elif rename_type == 'add_sequence_suffix':
+                # 添加序号后缀：例如 "文件.txt" -> "文件_001.txt"
+                return f"{name}_{sequence_num:03d}{ext}"
+            
+            elif rename_type == 'add_custom_prefix':
+                # 添加自定义前缀：例如 "文件.txt" -> "前缀_文件.txt"
+                if custom_text:
+                    return f"{custom_text}_{filename}"
+                return filename
+            
+            elif rename_type == 'add_custom_suffix':
+                # 添加自定义后缀：例如 "文件.txt" -> "文件_后缀.txt"
+                if custom_text:
+                    return f"{name}_{custom_text}{ext}"
+                return filename
+            
+            elif rename_type == 'remove_special_chars':
+                # 移除特殊字符：保留字母、数字、中文、下划线、连字符和点
+                clean_name = re.sub(r'[^\w\u4e00-\u9fff.-]', '', name)
+                return clean_name + ext
+            
+            elif rename_type == 'to_lowercase':
+                # 转为小写
+                return filename.lower()
+            
+            elif rename_type == 'to_uppercase':
+                # 转为大写
+                return filename.upper()
+            
+            elif rename_type == 'space_to_underscore':
+                # 空格替换为下划线
+                return filename.replace(' ', '_')
+            
+            elif rename_type == 'underscore_to_space':
+                # 下划线替换为空格
+                return filename.replace('_', ' ')
+            
+            elif rename_type == 'regex':
+                # 正则表达式替换
+                if pattern:
+                    repl = replacement if replacement is not None else ''
+                    return re.sub(pattern, repl, filename)
+                return filename
+            
+            elif rename_type == 'date_prefix':
+                # 添加日期前缀：例如 "文件.txt" -> "20231201_文件.txt"
+                from datetime import datetime
+                date_str = datetime.now().strftime('%Y%m%d')
+                return f"{date_str}_{filename}"
+            
+            elif rename_type == 'capitalize_words':
+                # 首字母大写：例如 "hello world.txt" -> "Hello World.txt"
+                capitalized_name = ' '.join(word.capitalize() for word in name.split())
+                return capitalized_name + ext
+            
+            else:
+                return filename
+                
+        except Exception as e:
+            # 如果重命名规则应用失败，返回原文件名
+            return original_name
+    
+    def read_file_content(self, file_path):
+        """读取文件内容"""
+        # 确保连接可用
+        connected, message = self.ensure_connected()
+        if not connected:
+            return False, message, ""
+        
+        try:
+            if self.mode == 'local':
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            else:
+                with self.sftp.open(file_path, 'r') as f:
+                    content = f.read().decode('utf-8')
+            
+            return True, "读取成功", content
+        except UnicodeDecodeError:
+            # 尝试其他编码
+            try:
+                if self.mode == 'local':
+                    with open(file_path, 'r', encoding='gbk') as f:
+                        content = f.read()
+                else:
+                    with self.sftp.open(file_path, 'r') as f:
+                        content = f.read().decode('gbk')
+                return True, "读取成功", content
+            except:
+                return False, "文件编码不支持，无法读取", ""
+        except Exception as e:
+            return False, f"读取文件失败: {str(e)}", ""
+    
+    def write_file_content(self, file_path, content):
+        """写入文件内容"""
+        # 确保连接可用
+        connected, message = self.ensure_connected()
+        if not connected:
+            return False, message
+        
+        try:
+            if self.mode == 'local':
+                # 创建备份
+                backup_path = file_path + '.backup'
+                if os.path.exists(file_path):
+                    shutil.copy2(file_path, backup_path)
+                
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+            else:
+                # 远程模式下的备份处理
+                backup_path = file_path + '.backup'
+                try:
+                    # 创建备份
+                    with self.sftp.open(file_path, 'r') as src:
+                        with self.sftp.open(backup_path, 'w') as dst:
+                            dst.write(src.read())
+                except:
+                    pass  # 如果备份失败，继续执行写入操作
+                
+                with self.sftp.open(file_path, 'w') as f:
+                    f.write(content.encode('utf-8'))
+            
+            return True, "保存成功"
+        except Exception as e:
+            return False, f"保存文件失败: {str(e)}"
+    
+    def organize_directory(self, directory, organize_type):
+        """目录整理功能"""
+        if not directory:
+            return False, "请指定目录路径", []
+        
+        # 确保连接可用
+        connected, message = self.ensure_connected()
+        if not connected:
+            return False, message, []
+        
+        try:
+            if organize_type == 'create_folders_for_files':
+                return self._create_folders_for_files(directory)
+            elif organize_type == 'remove_empty_dirs':
+                success, result, cleaned_dirs = self.clean_empty_directories(directory)
+                results = []
+                for dir_path in cleaned_dirs:
+                    results.append({
+                        'success': True,
+                        'dir_name': dir_path,
+                        'message': '空目录已删除'
+                    })
+                return success, result, results
+            else:
+                return False, "不支持的整理类型", []
+        
+        except Exception as e:
+            return False, f"目录整理失败: {str(e)}", []
+    
+    def _create_folders_for_files(self, directory):
+        """为文件创建同名文件夹并移入"""
+        try:
+            items = self.list_directory(directory)
+            results = []
+            success_count = 0
+            failed_count = 0
+            
+            # 只处理文件，跳过目录
+            files = [item for item in items if not item['is_dir']]
+            
+            for file_item in files:
+                filename = file_item['name']
+                file_path = file_item['path']
+                
+                # 获取不含扩展名的文件名作为文件夹名
+                folder_name = os.path.splitext(filename)[0]
+                
+                if self.mode == 'local':
+                    folder_path = os.path.join(directory, folder_name)
+                    new_file_path = os.path.join(folder_path, filename)
+                else:
+                    folder_path = os.path.join(directory, folder_name).replace('\\', '/')
+                    new_file_path = os.path.join(folder_path, filename).replace('\\', '/')
+                
+                try:
+                    # 创建文件夹
+                    if self.mode == 'local':
+                        os.makedirs(folder_path, exist_ok=True)
+                        # 移动文件
+                        shutil.move(file_path, new_file_path)
+                    else:
+                        # 远程模式
+                        try:
+                            self.sftp.mkdir(folder_path)
+                        except IOError:
+                            # 文件夹可能已存在
+                            pass
+                        # 移动文件
+                        self.sftp.rename(file_path, new_file_path)
+                    
+                    results.append({
+                        'success': True,
+                        'filename': filename,
+                        'folder_name': folder_name,
+                        'message': '已创建文件夹并移入文件'
+                    })
+                    success_count += 1
+                    
+                except Exception as e:
+                    results.append({
+                        'success': False,
+                        'filename': filename,
+                        'folder_name': folder_name,
+                        'message': f'操作失败: {str(e)}'
+                    })
+                    failed_count += 1
+            
+            overall_success = failed_count == 0
+            summary_message = f'文件整理完成：成功 {success_count} 个，失败 {failed_count} 个'
+            
+            return overall_success, summary_message, results
+            
+        except Exception as e:
+            return False, f"创建文件夹失败: {str(e)}", []
 
 # 全局文件管理器实例
 file_manager = FileManager()
@@ -1021,6 +1333,132 @@ def restore_directories():
         file_manager.set_mode(mode)
     
     success, message = file_manager.restore_directories(directories)
+    return jsonify({
+        'success': success,
+        'message': message
+    })
+
+@app.route('/batch_rename', methods=['POST'])
+def batch_rename():
+    """批量重命名文件"""
+    if not file_manager.is_connected():
+        return jsonify({
+            'success': False,
+            'message': f'请先{"连接SSH服务器" if file_manager.get_mode() == "remote" else "确保本地模式正常"}'
+        })
+    
+    directory = request.json.get('path')
+    rename_type = request.json.get('rename_type')
+    pattern = request.json.get('pattern')
+    replacement = request.json.get('replacement')
+    custom_text = request.json.get('custom_text')
+    sequence_position = request.json.get('sequence_position', 'prefix')
+    
+    if not directory:
+        return jsonify({
+            'success': False,
+            'message': '请指定目录路径'
+        })
+    
+    if not rename_type:
+        return jsonify({
+            'success': False,
+            'message': '请选择重命名类型'
+        })
+    
+    success, message, results = file_manager.batch_rename(
+        directory, rename_type, pattern, replacement, custom_text, sequence_position
+    )
+    
+    return jsonify({
+        'success': success,
+        'message': message,
+        'results': results
+    })
+
+@app.route('/organize_directory', methods=['POST'])
+def organize_directory():
+    """目录整理"""
+    if not file_manager.is_connected():
+        return jsonify({
+            'success': False,
+            'message': f'请先{"连接SSH服务器" if file_manager.get_mode() == "remote" else "确保本地模式正常"}'
+        })
+    
+    directory = request.json.get('path')
+    organize_type = request.json.get('organize_type')
+    
+    if not directory:
+        return jsonify({
+            'success': False,
+            'message': '请指定目录路径'
+        })
+    
+    if not organize_type:
+        return jsonify({
+            'success': False,
+            'message': '请选择整理类型'
+        })
+    
+    success, message, results = file_manager.organize_directory(directory, organize_type)
+    
+    return jsonify({
+        'success': success,
+        'message': message,
+        'results': results
+    })
+
+@app.route('/read_file', methods=['POST'])
+def read_file():
+    """读取文件内容"""
+    if not file_manager.is_connected():
+        return jsonify({
+            'success': False,
+            'message': f'请先{"连接SSH服务器" if file_manager.get_mode() == "remote" else "确保本地模式正常"}'
+        })
+    
+    file_path = request.json.get('file_path')
+    
+    if not file_path:
+        return jsonify({
+            'success': False,
+            'message': '请指定文件路径'
+        })
+    
+    success, message, content = file_manager.read_file_content(file_path)
+    
+    return jsonify({
+        'success': success,
+        'message': message,
+        'content': content
+    })
+
+@app.route('/write_file', methods=['POST'])
+def write_file():
+    """写入文件内容"""
+    if not file_manager.is_connected():
+        return jsonify({
+            'success': False,
+            'message': f'请先{"连接SSH服务器" if file_manager.get_mode() == "remote" else "确保本地模式正常"}'
+        })
+    
+    file_path = request.json.get('file_path')
+    content = request.json.get('content')
+    
+    if not file_path:
+        return jsonify({
+            'success': False,
+            'message': '请指定文件路径'
+        })
+    
+    if content is None:
+        return jsonify({
+            'success': False,
+            'message': '请提供文件内容'
+        })
+    
+    success, message = file_manager.write_file_content(file_path, content)
+    
     return jsonify({
         'success': success,
         'message': message

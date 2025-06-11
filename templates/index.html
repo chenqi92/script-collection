@@ -445,6 +445,49 @@
             color: #0c5460;
             background: rgba(23, 162, 184, 0.1);
         }
+
+        /* 文件编辑器样式 */
+        .editor-container {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            overflow: hidden;
+        }
+        
+        .editor-toolbar {
+            background: #f8f9fa;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .file-editor {
+            width: 100%;
+            height: 500px;
+            border: none;
+            padding: 1rem;
+            font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            background: #ffffff;
+            color: #333;
+        }
+        
+        .file-editor:focus {
+            outline: none;
+            box-shadow: none;
+        }
+        
+        /* 语法高亮样式 */
+        .syntax-yaml { background: #f8f9fa; }
+        .syntax-json { background: #f0f8ff; }
+        .syntax-xml { background: #fff8f0; }
+        .syntax-shell { background: #f0f0f0; }
+        .syntax-python { background: #f0f8f0; }
+        .syntax-javascript { background: #fffef0; }
+        .syntax-css { background: #f0f8ff; }
+        .syntax-html { background: #fff0f5; }
+        .syntax-sql { background: #f5fff0; }
+        .syntax-markdown { background: #f8f9fa; }
     </style>
 </head>
 <body class="bg-light">
@@ -493,6 +536,15 @@
             </button>
             <button class="function-tab" data-function="clean">
                 <i class="bi bi-trash"></i> 空目录清理
+            </button>
+            <button class="function-tab" data-function="rename">
+                <i class="bi bi-pencil-square"></i> 批量重命名
+            </button>
+            <button class="function-tab" data-function="organize">
+                <i class="bi bi-folder-plus"></i> 目录整理
+            </button>
+            <button class="function-tab" data-function="editor">
+                <i class="bi bi-code-slash"></i> 文件编辑器
             </button>
         </div>
     </div>
@@ -838,6 +890,230 @@
             </div>
         </div>
 
+        <!-- 批量重命名面板 -->
+        <div class="function-panel" id="renamePanel">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-pencil-square"></i> 批量重命名
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="renamePath" class="form-label">目标目录</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control path-input" id="renamePath" placeholder="选择要重命名文件的目录">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="browsePath('renamePath')">
+                                                <i class="bi bi-folder"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="renameType" class="form-label">重命名类型</label>
+                                        <select class="form-select" id="renameType" onchange="toggleRenameInputs()">
+                                            <option value="remove_number_prefix">移除数字前缀</option>
+                                            <option value="add_sequence_prefix">添加序号前缀</option>
+                                            <option value="add_sequence_suffix">添加序号后缀</option>
+                                            <option value="add_custom_prefix">添加自定义前缀</option>
+                                            <option value="add_custom_suffix">添加自定义后缀</option>
+                                            <option value="remove_special_chars">移除特殊字符</option>
+                                            <option value="to_lowercase">转为小写</option>
+                                            <option value="to_uppercase">转为大写</option>
+                                            <option value="space_to_underscore">空格替换下划线</option>
+                                            <option value="underscore_to_space">下划线替换空格</option>
+                                            <option value="date_prefix">添加日期前缀</option>
+                                            <option value="capitalize_words">首字母大写</option>
+                                            <option value="regex">正则表达式</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 自定义文本输入框 -->
+                            <div class="row" id="customTextInputs" style="display:none;">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="customText" class="form-label">自定义文本</label>
+                                        <input type="text" class="form-control" id="customText" placeholder="输入要添加的文本">
+                                        <div class="form-text">将添加到文件名的前缀或后缀位置</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 正则表达式输入框 -->
+                            <div class="row" id="regexInputs" style="display:none;">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="regexPattern" class="form-label">正则表达式模式</label>
+                                        <input type="text" class="form-control" id="regexPattern" placeholder="例如: ^\d+\s*">
+                                        <div class="form-text">匹配要替换的部分</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="regexReplacement" class="form-label">替换内容</label>
+                                        <input type="text" class="form-control" id="regexReplacement" placeholder="留空表示删除">
+                                        <div class="form-text">用来替换匹配内容的文本</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-12">
+                                    <button type="button" class="btn btn-warning" onclick="executeRename()">
+                                        <i class="bi bi-pencil-square"></i> 执行重命名
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 目录整理面板 -->
+        <div class="function-panel" id="organizePanel">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-folder-plus"></i> 目录整理
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="organizePath" class="form-label">目标目录</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control path-input" id="organizePath" placeholder="选择要整理的目录">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="browsePath('organizePath')">
+                                                <i class="bi bi-folder"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="organizeType" class="form-label">整理类型</label>
+                                        <select class="form-select" id="organizeType">
+                                            <option value="create_folders_for_files">为文件创建同名文件夹</option>
+                                            <option value="remove_empty_dirs">移除空目录</option>
+                                        </select>
+                                        <div class="form-text">选择目录整理方式</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="alert alert-info" role="alert">
+                                        <i class="bi bi-info-circle"></i>
+                                        <strong>整理说明：</strong>
+                                        <ul class="mb-0 mt-2">
+                                            <li><strong>为文件创建同名文件夹：</strong>为每个文件创建一个以文件名（不含扩展名）命名的文件夹，并将文件移入其中</li>
+                                            <li><strong>移除空目录：</strong>递归删除目录下所有的空文件夹</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-12">
+                                    <button type="button" class="btn btn-primary" onclick="executeOrganize()">
+                                        <i class="bi bi-folder-plus"></i> 执行整理
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件编辑器面板 -->
+        <div class="function-panel" id="editorPanel">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-code-slash"></i> 文件编辑器
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="editorFilePath" class="form-label">文件路径</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control path-input" id="editorFilePath" placeholder="输入文件路径或使用浏览器选择">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="browseForFile()">
+                                                <i class="bi bi-file-earmark"></i> 浏览
+                                            </button>
+                                            <button class="btn btn-outline-primary" type="button" onclick="loadFileContent()">
+                                                <i class="bi bi-folder-open"></i> 打开
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="fileType" class="form-label">文件类型</label>
+                                        <select class="form-select" id="fileType" onchange="updateEditorLanguage()">
+                                            <option value="text">纯文本</option>
+                                            <option value="yaml">YAML</option>
+                                            <option value="json">JSON</option>
+                                            <option value="xml">XML</option>
+                                            <option value="ini">INI/Config</option>
+                                            <option value="shell">Shell Script</option>
+                                            <option value="python">Python</option>
+                                            <option value="javascript">JavaScript</option>
+                                            <option value="css">CSS</option>
+                                            <option value="html">HTML</option>
+                                            <option value="sql">SQL</option>
+                                            <option value="markdown">Markdown</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="editor-container">
+                                        <div class="editor-toolbar">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <span class="badge bg-secondary" id="fileInfo">未加载文件</span>
+                                                    <span class="badge bg-info" id="cursorInfo">行: 1, 列: 1</span>
+                                                </div>
+                                                <div>
+                                                    <button class="btn btn-sm btn-outline-secondary" onclick="formatContent()">
+                                                        <i class="bi bi-code"></i> 格式化
+                                                    </button>
+                                                    <button class="btn btn-sm btn-success" onclick="saveFileContent()">
+                                                        <i class="bi bi-save"></i> 保存
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <textarea id="fileEditor" class="file-editor" placeholder="在这里编辑文件内容..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 结果显示面板 -->
         <div class="row" id="resultsPanel" style="display:none;">
             <div class="col-12">
@@ -1080,7 +1356,13 @@
                 'path1',             // 比较路径1
                 'path2',             // 比较路径2
                 'treeDirectory',     // 目录树路径
-                'cleanDirectory'     // 清理目录路径
+                'cleanDirectory',    // 清理目录路径
+                'renamePath',        // 重命名路径
+                'organizePath',      // 整理路径
+                'editorFilePath',    // 编辑器文件路径
+                'customText',        // 自定义文本
+                'regexPattern',      // 正则表达式模式
+                'regexReplacement'   // 正则表达式替换
             ];
             
             inputFields.forEach(fieldId => {
@@ -1162,6 +1444,9 @@
             const compareTab = document.querySelector('[data-function="compare"]');
             const treeTab = document.querySelector('[data-function="tree"]');
             const cleanTab = document.querySelector('[data-function="clean"]');
+            const renameTab = document.querySelector('[data-function="rename"]');
+            const organizeTab = document.querySelector('[data-function="organize"]');
+            const editorTab = document.querySelector('[data-function="editor"]');
             
             if (currentMode === 'local') {
                 // 本地模式：隐藏连接管理，显示所有其他功能
@@ -1170,9 +1455,12 @@
                 compareTab.style.display = 'block';
                 treeTab.style.display = 'block';
                 cleanTab.style.display = 'block';
+                renameTab.style.display = 'block';
+                organizeTab.style.display = 'block';
+                editorTab.style.display = 'block';
                 
                 // 移除所有禁用状态
-                [toolsTab, compareTab, treeTab, cleanTab].forEach(tab => {
+                [toolsTab, compareTab, treeTab, cleanTab, renameTab, organizeTab, editorTab].forEach(tab => {
                     tab.classList.remove('disabled');
                     tab.style.pointerEvents = 'auto';
                 });
@@ -1188,6 +1476,9 @@
                 compareTab.style.display = 'block';
                 treeTab.style.display = 'block';
                 cleanTab.style.display = 'block';
+                renameTab.style.display = 'block';
+                organizeTab.style.display = 'block';
+                editorTab.style.display = 'block';
                 
                 // 如果当前在本地工具面板，切换到连接管理
                 if (toolsTab.classList.contains('active')) {
@@ -2038,8 +2329,12 @@
             
             // 再显示文件
             items.filter(item => !item.is_dir).forEach(item => {
+                const isFileSelection = currentBrowsingInput === 'editorFilePath';
+                const fileClickHandler = isFileSelection ? `selectFile('${item.path}')` : '';
+                const fileClass = isFileSelection ? 'file-item' : '';
+                
                 html += `
-                    <div class="list-group-item">
+                    <div class="list-group-item ${fileClass}" ${isFileSelection ? `onclick="${fileClickHandler}"` : ''}>
                         <i class="bi bi-file-earmark text-primary"></i> ${item.name}
                         <small class="text-muted float-end">${formatFileSize(item.size)} | ${item.modified}</small>
                     </div>
@@ -2079,6 +2374,11 @@
 
         function selectCurrentPath() {
             document.getElementById(currentBrowsingInput).value = currentPath;
+            browseModal.hide();
+        }
+        
+        function selectFile(filePath) {
+            document.getElementById(currentBrowsingInput).value = filePath;
             browseModal.hide();
         }
 
@@ -2201,37 +2501,7 @@
             }
         }
 
-        // 功能模式切换
-        function switchFunctionMode() {
-            const mode = document.querySelector('input[name="functionMode"]:checked')?.value || 'compare';
-            
-            // 隐藏所有功能面板
-            document.getElementById('comparePanel').style.display = 'none';
-            document.getElementById('renamePanel').style.display = 'none';
-            document.getElementById('organizePanel').style.display = 'none';
-            document.getElementById('resultsPanel').style.display = 'none';
-            
-            // 显示对应的功能面板
-            if (mode === 'compare') {
-                document.getElementById('comparePanel').style.display = 'block';
-            } else if (mode === 'rename') {
-                document.getElementById('renamePanel').style.display = 'block';
-            } else if (mode === 'organize') {
-                document.getElementById('organizePanel').style.display = 'block';
-            }
-        }
 
-        // 切换正则表达式输入框
-        function toggleRegexInputs() {
-            const renameType = document.getElementById('renameType').value;
-            const regexInputs = document.getElementById('regexInputs');
-            
-            if (renameType === 'regex') {
-                regexInputs.style.display = 'block';
-            } else {
-                regexInputs.style.display = 'none';
-            }
-        }
 
         // 执行批量重命名
         async function executeRename() {
@@ -2457,6 +2727,357 @@
             };
             return typeMap[type] || type;
         }
+
+        // 切换重命名输入框
+        function toggleRenameInputs() {
+            const renameType = document.getElementById('renameType').value;
+            const regexInputs = document.getElementById('regexInputs');
+            const customTextInputs = document.getElementById('customTextInputs');
+            
+            // 隐藏所有输入框
+            regexInputs.style.display = 'none';
+            customTextInputs.style.display = 'none';
+            
+            if (renameType === 'regex') {
+                regexInputs.style.display = 'block';
+            } else if (renameType === 'add_custom_prefix' || renameType === 'add_custom_suffix') {
+                customTextInputs.style.display = 'block';
+            }
+        }
+
+        // 执行批量重命名
+        async function executeRename() {
+            const path = document.getElementById('renamePath').value;
+            const renameType = document.getElementById('renameType').value;
+            const pattern = document.getElementById('regexPattern').value;
+            const replacement = document.getElementById('regexReplacement').value;
+            const customText = document.getElementById('customText').value;
+
+            if (!path) {
+                showMessage('请输入目标目录路径', 'warning');
+                return;
+            }
+
+            if (renameType === 'regex' && !pattern) {
+                showMessage('使用正则表达式时，请输入正则表达式模式', 'warning');
+                return;
+            }
+
+            if ((renameType === 'add_custom_prefix' || renameType === 'add_custom_suffix') && !customText) {
+                showMessage('使用自定义前缀/后缀时，请输入自定义文本', 'warning');
+                return;
+            }
+
+            const confirmed = await showCustomConfirm(
+                `确定要对目录 <code>${path}</code> 中的文件进行批量重命名吗？<br><br><strong>重命名类型:</strong> ${getRenameTypeText(renameType)}<br><br><strong>此操作不可撤销！</strong>`,
+                '批量重命名确认',
+                'warning'
+            );
+            
+            if (!confirmed) {
+                return;
+            }
+
+            showLoading();
+            addOperationLog('批量重命名', `开始重命名: ${path} (${getRenameTypeText(renameType)})`, 'warning');
+            
+            try {
+                const response = await fetch('/batch_rename', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        path: path,
+                        rename_type: renameType,
+                        pattern: pattern,
+                        replacement: replacement,
+                        custom_text: customText
+                    })
+                });
+
+                const result = await response.json();
+                hideLoading();
+
+                if (result.success) {
+                    const successCount = result.results ? result.results.filter(r => r.success).length : 0;
+                    const failedCount = result.results ? result.results.filter(r => !r.success).length : 0;
+                    
+                    addOperationLog(
+                        '批量重命名', 
+                        `重命名完成: 成功 ${successCount} 个，失败 ${failedCount} 个`,
+                        failedCount > 0 ? 'warning' : 'success'
+                    );
+                    
+                    displayOperationResults('重命名结果', result.results, result.message);
+                    showMessage(result.message, 'success');
+                } else {
+                    addOperationLog('批量重命名', `重命名失败: ${result.message}`, 'error');
+                    showMessage(result.message, 'danger');
+                }
+            } catch (error) {
+                hideLoading();
+                addOperationLog('批量重命名', `重命名异常: ${error.message}`, 'error');
+                showMessage('批量重命名请求失败: ' + error.message, 'danger');
+            }
+        }
+
+        // 执行目录整理
+        async function executeOrganize() {
+            const path = document.getElementById('organizePath').value;
+            const organizeType = document.getElementById('organizeType').value;
+
+            if (!path) {
+                showMessage('请输入目标目录路径', 'warning');
+                return;
+            }
+
+            const confirmed = await showCustomConfirm(
+                `确定要对目录 <code>${path}</code> 执行整理操作吗？<br><br><strong>整理类型:</strong> ${getOrganizeTypeText(organizeType)}<br><br><strong>此操作不可撤销！</strong>`,
+                '目录整理确认',
+                'warning'
+            );
+            
+            if (!confirmed) {
+                return;
+            }
+
+            showLoading();
+            addOperationLog('目录整理', `开始整理: ${path} (${getOrganizeTypeText(organizeType)})`, 'warning');
+            
+            try {
+                const response = await fetch('/organize_directory', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        path: path,
+                        organize_type: organizeType
+                    })
+                });
+
+                const result = await response.json();
+                hideLoading();
+
+                if (result.success) {
+                    const successCount = result.results ? result.results.filter(r => r.success).length : 0;
+                    const failedCount = result.results ? result.results.filter(r => !r.success).length : 0;
+                    
+                    addOperationLog(
+                        '目录整理', 
+                        `整理完成: 成功 ${successCount} 个，失败 ${failedCount} 个`,
+                        failedCount > 0 ? 'warning' : 'success'
+                    );
+                    
+                    displayOperationResults('整理结果', result.results, result.message);
+                    showMessage(result.message, 'success');
+                } else {
+                    addOperationLog('目录整理', `整理失败: ${result.message}`, 'error');
+                    showMessage(result.message, 'danger');
+                }
+            } catch (error) {
+                hideLoading();
+                addOperationLog('目录整理', `整理异常: ${error.message}`, 'error');
+                showMessage('目录整理请求失败: ' + error.message, 'danger');
+            }
+        }
+
+        // 文件编辑器相关函数
+        let currentFileContent = '';
+        let currentFilePath = '';
+
+        function browseForFile() {
+            // 使用目录浏览器，但允许选择文件
+            currentBrowsingInput = 'editorFilePath';
+            browseModal.show();
+            loadDirectory(currentMode === 'remote' ? '/' : (currentPath || '/'));
+        }
+
+        async function loadFileContent() {
+            const filePath = document.getElementById('editorFilePath').value;
+            
+            if (!filePath) {
+                showMessage('请输入文件路径', 'warning');
+                return;
+            }
+
+            showLoading();
+            
+            try {
+                const response = await fetch('/read_file', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        file_path: filePath
+                    })
+                });
+
+                const result = await response.json();
+                hideLoading();
+
+                if (result.success) {
+                    currentFileContent = result.content;
+                    currentFilePath = filePath;
+                    
+                    document.getElementById('fileEditor').value = result.content;
+                    document.getElementById('fileInfo').textContent = `已加载: ${filePath}`;
+                    
+                    // 自动检测文件类型
+                    autoDetectFileType(filePath);
+                    updateEditorLanguage();
+                    
+                    showMessage('文件加载成功', 'success');
+                    addOperationLog('文件编辑', `成功加载文件: ${filePath}`, 'success');
+                } else {
+                    showMessage(result.message, 'danger');
+                    addOperationLog('文件编辑', `加载失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showMessage('加载文件失败: ' + error.message, 'danger');
+                addOperationLog('文件编辑', `加载异常: ${error.message}`, 'error');
+            }
+        }
+
+        async function saveFileContent() {
+            const filePath = document.getElementById('editorFilePath').value;
+            const content = document.getElementById('fileEditor').value;
+            
+            if (!filePath) {
+                showMessage('请输入文件路径', 'warning');
+                return;
+            }
+
+            const confirmed = await showCustomConfirm(
+                `确定要保存文件吗？<br><br><code>${filePath}</code><br><br><small class="text-muted">系统会自动创建备份文件 (.backup)</small>`,
+                '保存文件确认',
+                'info'
+            );
+            
+            if (!confirmed) {
+                return;
+            }
+
+            showLoading();
+            
+            try {
+                const response = await fetch('/write_file', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        file_path: filePath,
+                        content: content
+                    })
+                });
+
+                const result = await response.json();
+                hideLoading();
+
+                if (result.success) {
+                    currentFileContent = content;
+                    showMessage('文件保存成功', 'success');
+                    addOperationLog('文件编辑', `成功保存文件: ${filePath}`, 'success');
+                } else {
+                    showMessage(result.message, 'danger');
+                    addOperationLog('文件编辑', `保存失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showMessage('保存文件失败: ' + error.message, 'danger');
+                addOperationLog('文件编辑', `保存异常: ${error.message}`, 'error');
+            }
+        }
+
+        function autoDetectFileType(filePath) {
+            const extension = filePath.split('.').pop().toLowerCase();
+            const fileTypeSelect = document.getElementById('fileType');
+            
+            const typeMap = {
+                'yaml': 'yaml',
+                'yml': 'yaml',
+                'json': 'json',
+                'xml': 'xml',
+                'ini': 'ini',
+                'conf': 'ini',
+                'config': 'ini',
+                'sh': 'shell',
+                'bash': 'shell',
+                'py': 'python',
+                'js': 'javascript',
+                'css': 'css',
+                'html': 'html',
+                'htm': 'html',
+                'sql': 'sql',
+                'md': 'markdown',
+                'txt': 'text'
+            };
+            
+            const detectedType = typeMap[extension] || 'text';
+            fileTypeSelect.value = detectedType;
+        }
+
+        function updateEditorLanguage() {
+            const fileType = document.getElementById('fileType').value;
+            const editor = document.getElementById('fileEditor');
+            
+            // 移除所有语法高亮类
+            editor.className = 'file-editor';
+            
+            // 添加对应的语法高亮类
+            if (fileType !== 'text') {
+                editor.classList.add(`syntax-${fileType}`);
+            }
+        }
+
+        function formatContent() {
+            const fileType = document.getElementById('fileType').value;
+            const editor = document.getElementById('fileEditor');
+            let content = editor.value;
+            
+            try {
+                switch (fileType) {
+                    case 'json':
+                        const jsonObj = JSON.parse(content);
+                        content = JSON.stringify(jsonObj, null, 2);
+                        break;
+                    case 'yaml':
+                        // 简单的YAML格式化（基础版本）
+                        content = content.split('\n').map(line => line.trim()).join('\n');
+                        break;
+                    default:
+                        showMessage('当前文件类型不支持自动格式化', 'info');
+                        return;
+                }
+                
+                editor.value = content;
+                showMessage('内容格式化成功', 'success');
+            } catch (error) {
+                showMessage('格式化失败: 内容格式错误', 'danger');
+            }
+        }
+
+        // 监听编辑器光标位置
+        document.addEventListener('DOMContentLoaded', function() {
+            const editor = document.getElementById('fileEditor');
+            const cursorInfo = document.getElementById('cursorInfo');
+            
+            if (editor && cursorInfo) {
+                editor.addEventListener('keyup', updateCursorInfo);
+                editor.addEventListener('click', updateCursorInfo);
+                
+                function updateCursorInfo() {
+                    const lines = editor.value.substring(0, editor.selectionStart).split('\n');
+                    const line = lines.length;
+                    const col = lines[lines.length - 1].length + 1;
+                    cursorInfo.textContent = `行: ${line}, 列: ${col}`;
+                }
+            }
+        });
     </script>
 </body>
 </html> 
