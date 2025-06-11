@@ -1250,8 +1250,17 @@
             const applyGitignore = document.getElementById('applyGitignore').checked;
             const excludeFiles = document.getElementById('excludeFiles').checked;
             const maxLevel = document.getElementById('maxLevel').value || null;
+            
+            const directoryText = directory || '当前目录';
+            const options = [];
+            if (applyGitignore) options.push('应用.gitignore');
+            if (excludeFiles) options.push('仅显示目录');
+            if (maxLevel) options.push(`最大层级: ${maxLevel}`);
+            const optionsText = options.length > 0 ? ` (${options.join(', ')})` : '';
 
             showLoading();
+            addOperationLog('目录树生成', `开始生成目录树: ${directoryText}${optionsText}`, 'warning');
+            
             try {
                 const response = await fetch('/tree', {
                     method: 'POST',
@@ -1275,12 +1284,18 @@
                     
                     document.getElementById('treeOutput').textContent = result.result;
                     document.getElementById('treeOutputPanel').style.display = 'block';
+                    
+                    // 计算树的行数作为复杂度指标
+                    const lineCount = result.result.split('\n').length;
+                    addOperationLog('目录树生成', `成功生成目录树: ${lineCount} 行`, 'success');
                     showMessage('目录树生成成功！', 'success');
                 } else {
+                    addOperationLog('目录树生成', `生成失败: ${result.result}`, 'error');
                     showMessage(result.result, 'danger');
                 }
             } catch (error) {
                 hideLoading();
+                addOperationLog('目录树生成', `生成异常: ${error.message}`, 'error');
                 showMessage('生成目录树失败: ' + error.message, 'danger');
             }
         }
@@ -1762,6 +1777,8 @@
             }
 
             showLoading();
+            addOperationLog('目录比较', `开始比较: ${path1} 与 ${path2} (相似度阈值: ${similarityThreshold}%)`, 'warning');
+            
             try {
                 const response = await fetch('/compare', {
                     method: 'POST',
@@ -1782,13 +1799,22 @@
                     // 隐藏其他功能的结果面板
                     document.getElementById('treeOutputPanel').style.display = 'none';
                     
+                    const duplicateCount = result.duplicates ? result.duplicates.length : 0;
+                    addOperationLog(
+                        '目录比较', 
+                        `比较完成: 发现 ${duplicateCount} 个重复/相似项`,
+                        duplicateCount > 0 ? 'warning' : 'success'
+                    );
+                    
                     displayDuplicates(result.duplicates);
                     showMessage(result.message, 'success');
                 } else {
+                    addOperationLog('目录比较', `比较失败: ${result.message}`, 'error');
                     showMessage(result.message, 'danger');
                 }
             } catch (error) {
                 hideLoading();
+                addOperationLog('目录比较', `比较异常: ${error.message}`, 'error');
                 showMessage('比较请求失败: ' + error.message, 'danger');
             }
         }
@@ -2224,12 +2250,19 @@
                 return;
             }
 
-            const confirmMessage = `确定要对目录 ${path} 中的文件进行批量重命名吗？\n\n重命名类型: ${getRenameTypeText(renameType)}\n\n此操作不可撤销！`;
-            if (!confirm(confirmMessage)) {
+            const confirmed = await showCustomConfirm(
+                `确定要对目录 <code>${path}</code> 中的文件进行批量重命名吗？<br><br><strong>重命名类型:</strong> ${getRenameTypeText(renameType)}<br><br><strong>此操作不可撤销！</strong>`,
+                '批量重命名确认',
+                'warning'
+            );
+            
+            if (!confirmed) {
                 return;
             }
 
             showLoading();
+            addOperationLog('批量重命名', `开始重命名: ${path} (${getRenameTypeText(renameType)})`, 'warning');
+            
             try {
                 const response = await fetch('/batch_rename', {
                     method: 'POST',
@@ -2248,13 +2281,24 @@
                 hideLoading();
 
                 if (result.success) {
+                    const successCount = result.results ? result.results.filter(r => r.success).length : 0;
+                    const failedCount = result.results ? result.results.filter(r => !r.success).length : 0;
+                    
+                    addOperationLog(
+                        '批量重命名', 
+                        `重命名完成: 成功 ${successCount} 个，失败 ${failedCount} 个`,
+                        failedCount > 0 ? 'warning' : 'success'
+                    );
+                    
                     displayOperationResults('重命名结果', result.results, result.message);
                     showMessage(result.message, 'success');
                 } else {
+                    addOperationLog('批量重命名', `重命名失败: ${result.message}`, 'error');
                     showMessage(result.message, 'danger');
                 }
             } catch (error) {
                 hideLoading();
+                addOperationLog('批量重命名', `重命名异常: ${error.message}`, 'error');
                 showMessage('批量重命名请求失败: ' + error.message, 'danger');
             }
         }
@@ -2269,12 +2313,19 @@
                 return;
             }
 
-            const confirmMessage = `确定要对目录 ${path} 执行整理操作吗？\n\n整理类型: ${getOrganizeTypeText(organizeType)}\n\n此操作不可撤销！`;
-            if (!confirm(confirmMessage)) {
+            const confirmed = await showCustomConfirm(
+                `确定要对目录 <code>${path}</code> 执行整理操作吗？<br><br><strong>整理类型:</strong> ${getOrganizeTypeText(organizeType)}<br><br><strong>此操作不可撤销！</strong>`,
+                '目录整理确认',
+                'warning'
+            );
+            
+            if (!confirmed) {
                 return;
             }
 
             showLoading();
+            addOperationLog('目录整理', `开始整理: ${path} (${getOrganizeTypeText(organizeType)})`, 'warning');
+            
             try {
                 const response = await fetch('/organize_directory', {
                     method: 'POST',
@@ -2291,13 +2342,24 @@
                 hideLoading();
 
                 if (result.success) {
+                    const successCount = result.results ? result.results.filter(r => r.success).length : 0;
+                    const failedCount = result.results ? result.results.filter(r => !r.success).length : 0;
+                    
+                    addOperationLog(
+                        '目录整理', 
+                        `整理完成: 成功 ${successCount} 个，失败 ${failedCount} 个`,
+                        failedCount > 0 ? 'warning' : 'success'
+                    );
+                    
                     displayOperationResults('整理结果', result.results, result.message);
                     showMessage(result.message, 'success');
                 } else {
+                    addOperationLog('目录整理', `整理失败: ${result.message}`, 'error');
                     showMessage(result.message, 'danger');
                 }
             } catch (error) {
                 hideLoading();
+                addOperationLog('目录整理', `整理异常: ${error.message}`, 'error');
                 showMessage('目录整理请求失败: ' + error.message, 'danger');
             }
         }
