@@ -2174,6 +2174,227 @@
                 showMessage('批量删除请求失败: ' + error.message, 'danger');
             }
         }
+
+        // 功能模式切换
+        function switchFunctionMode() {
+            const mode = document.querySelector('input[name="functionMode"]:checked')?.value || 'compare';
+            
+            // 隐藏所有功能面板
+            document.getElementById('comparePanel').style.display = 'none';
+            document.getElementById('renamePanel').style.display = 'none';
+            document.getElementById('organizePanel').style.display = 'none';
+            document.getElementById('resultsPanel').style.display = 'none';
+            
+            // 显示对应的功能面板
+            if (mode === 'compare') {
+                document.getElementById('comparePanel').style.display = 'block';
+            } else if (mode === 'rename') {
+                document.getElementById('renamePanel').style.display = 'block';
+            } else if (mode === 'organize') {
+                document.getElementById('organizePanel').style.display = 'block';
+            }
+        }
+
+        // 切换正则表达式输入框
+        function toggleRegexInputs() {
+            const renameType = document.getElementById('renameType').value;
+            const regexInputs = document.getElementById('regexInputs');
+            
+            if (renameType === 'regex') {
+                regexInputs.style.display = 'block';
+            } else {
+                regexInputs.style.display = 'none';
+            }
+        }
+
+        // 执行批量重命名
+        async function executeRename() {
+            const path = document.getElementById('renamePath').value;
+            const renameType = document.getElementById('renameType').value;
+            const pattern = document.getElementById('regexPattern').value;
+            const replacement = document.getElementById('regexReplacement').value;
+
+            if (!path) {
+                showMessage('请输入目标目录路径', 'warning');
+                return;
+            }
+
+            if (renameType === 'regex' && !pattern) {
+                showMessage('使用正则表达式时，请输入正则表达式模式', 'warning');
+                return;
+            }
+
+            const confirmMessage = `确定要对目录 ${path} 中的文件进行批量重命名吗？\n\n重命名类型: ${getRenameTypeText(renameType)}\n\n此操作不可撤销！`;
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+
+            showLoading();
+            try {
+                const response = await fetch('/batch_rename', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        path: path,
+                        rename_type: renameType,
+                        pattern: pattern,
+                        replacement: replacement
+                    })
+                });
+
+                const result = await response.json();
+                hideLoading();
+
+                if (result.success) {
+                    displayOperationResults('重命名结果', result.results, result.message);
+                    showMessage(result.message, 'success');
+                } else {
+                    showMessage(result.message, 'danger');
+                }
+            } catch (error) {
+                hideLoading();
+                showMessage('批量重命名请求失败: ' + error.message, 'danger');
+            }
+        }
+
+        // 执行目录整理
+        async function executeOrganize() {
+            const path = document.getElementById('organizePath').value;
+            const organizeType = document.getElementById('organizeType').value;
+
+            if (!path) {
+                showMessage('请输入目标目录路径', 'warning');
+                return;
+            }
+
+            const confirmMessage = `确定要对目录 ${path} 执行整理操作吗？\n\n整理类型: ${getOrganizeTypeText(organizeType)}\n\n此操作不可撤销！`;
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+
+            showLoading();
+            try {
+                const response = await fetch('/organize_directory', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        path: path,
+                        organize_type: organizeType
+                    })
+                });
+
+                const result = await response.json();
+                hideLoading();
+
+                if (result.success) {
+                    displayOperationResults('整理结果', result.results, result.message);
+                    showMessage(result.message, 'success');
+                } else {
+                    showMessage(result.message, 'danger');
+                }
+            } catch (error) {
+                hideLoading();
+                showMessage('目录整理请求失败: ' + error.message, 'danger');
+            }
+        }
+
+        // 显示操作结果
+        function displayOperationResults(title, results, message) {
+            const resultsPanel = document.getElementById('resultsPanel');
+            const resultsTitle = document.getElementById('resultsTitle');
+            const duplicateCount = document.getElementById('duplicateCount');
+            const duplicatesList = document.getElementById('duplicatesList');
+            const batchControls = document.getElementById('batchControls');
+
+            // 更新标题和计数
+            resultsTitle.innerHTML = `<i class="bi bi-check-circle"></i> ${title}`;
+            duplicateCount.textContent = message;
+
+            // 隐藏批量控制区域（不适用于重命名和整理操作）
+            batchControls.style.display = 'none';
+
+            // 生成结果列表
+            let html = '';
+            results.forEach((item, index) => {
+                const statusIcon = item.success ? 'bi-check-circle text-success' : 'bi-x-circle text-danger';
+                const cardClass = item.success ? 'border-success' : 'border-danger';
+                
+                html += `
+                    <div class="card mb-2 ${cardClass}">
+                        <div class="card-body p-3">
+                            <div class="row align-items-center">
+                                <div class="col-md-1">
+                                    <i class="bi ${statusIcon}"></i>
+                                </div>
+                                <div class="col-md-11">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                `;
+                
+                if (item.old_name !== undefined) {
+                    // 重命名结果
+                    html += `
+                                            <strong>原名称:</strong> ${item.old_name}<br>
+                                            <strong>新名称:</strong> ${item.new_name}<br>
+                    `;
+                } else if (item.filename !== undefined) {
+                    // 文件夹创建结果
+                    html += `
+                                            <strong>文件:</strong> ${item.filename}<br>
+                                            <strong>文件夹:</strong> ${item.folder_name}<br>
+                    `;
+                } else if (item.dir_name !== undefined) {
+                    // 目录清理结果
+                    html += `
+                                            <strong>目录:</strong> ${item.dir_name}<br>
+                    `;
+                }
+                
+                html += `
+                                            <small class="text-muted">${item.message}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (html === '') {
+                html = '<div class="alert alert-info">没有需要处理的项目</div>';
+            }
+
+            duplicatesList.innerHTML = html;
+            resultsPanel.style.display = 'block';
+        }
+
+        // 获取重命名类型文本
+        function getRenameTypeText(type) {
+            const typeMap = {
+                'remove_number_prefix': '移除数字前缀',
+                'add_sequence': '添加序号前缀',
+                'remove_special_chars': '移除特殊字符',
+                'to_lowercase': '转为小写',
+                'to_uppercase': '转为大写',
+                'space_to_underscore': '空格替换为下划线',
+                'regex': '正则表达式'
+            };
+            return typeMap[type] || type;
+        }
+
+        // 获取整理类型文本
+        function getOrganizeTypeText(type) {
+            const typeMap = {
+                'create_folders_for_files': '为文件创建同名文件夹',
+                'remove_empty_dirs': '移除空目录'
+            };
+            return typeMap[type] || type;
+        }
     </script>
 </body>
 </html> 
