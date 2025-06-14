@@ -1,0 +1,22 @@
+[
+  {
+    "id": "root@192.168.0.3:22",
+    "hostname": "192.168.0.3",
+    "username": "root",
+    "port": "22",
+    "auth_type": "password",
+    "description": "",
+    "last_connected": "2025-06-11T15:33:34.724566",
+    "connect_count": 4
+  },
+  {
+    "id": "root@192.168.0.2:22",
+    "hostname": "192.168.0.2",
+    "username": "root",
+    "port": "22",
+    "auth_type": "password",
+    "description": "",
+    "last_connected": "2025-06-11T14:50:27.162913",
+    "connect_count": 3
+  }
+]

@@ -3,84 +3,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SSH 文件管理器 - 重复文件检测与删除</title>
+    <title>统一文件管理器 - 本地和远程文件管理</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        .connection-status {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-        }
-        .file-item {
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .file-item:hover {
-            background-color: #f8f9fa;
-        }
-        .loading {
-            display: none;
-        }
-        .duplicate-item {
-            border-left: 4px solid #dc3545;
-        }
-        .similar-item {
-            border-left: 4px solid #ffc107;
-        }
-        .batch-controls {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 0.375rem;
-            padding: 1rem;
-            margin-bottom: 1rem;
-        }
-        .path-input {
-            font-family: 'Courier New', monospace;
-        }
-        .main-container {
-            margin-top: 20px;
-        }
-        .card-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        .btn-danger {
-            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-            border: none;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-        }
-        .btn-success {
-            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
-            border: none;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body class="bg-light">
-    <!-- 连接状态指示器 -->
-    <div class="connection-status">
-        <span id="connectionBadge" class="badge bg-danger">
-            <i class="bi bi-wifi-off"></i> 未连接
-        </span>
-    </div>
-
-    <div class="container main-container">
-        <div class="row">
-            <div class="col-12">
-                <div class="text-center mb-4">
-                    <h1 class="display-4 text-primary">
-                        <i class="bi bi-server"></i> SSH 文件管理器
-                    </h1>
-                    <p class="lead text-muted">远程重复文件检测与删除工具</p>
+<!-- 顶部导航栏 -->
+<nav class="top-navbar">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="navbar-brand">
+                <i class="bi bi-files"></i> 统一文件管理器
+            </div>
+            <div class="d-flex align-items-center">
+                <!-- 模式切换按钮 -->
+                <div class="mode-toggle">
+                    <button type="button" id="localModeBtn" class="btn">
+                        <i class="bi bi-laptop"></i> 本地模式
+                    </button>
+                    <button type="button" id="remoteModeBtn" class="btn">
+                        <i class="bi bi-cloud"></i> 远程模式
+                    </button>
+                </div>
+                <!-- 连接状态指示器 -->
+                <div class="connection-status">
+                        <span id="connectionBadge" class="badge bg-danger">
+                            <i class="bi bi-wifi-off"></i> 未连接
+                        </span>
                 </div>
             </div>
         </div>
+    </div>
+</nav>
 
-        <!-- SSH 连接面板 -->
+<!-- 功能菜单 -->
+<div class="function-menu">
+    <div class="function-tabs">
+        <button class="function-tab active" data-function="connection">
+            <i class="bi bi-plug"></i> 连接管理
+        </button>
+        <button class="function-tab" data-function="tools">
+            <i class="bi bi-tools"></i> 本地工具
+        </button>
+        <button class="function-tab" data-function="compare">
+            <i class="bi bi-search"></i> 目录比较
+        </button>
+        <button class="function-tab" data-function="tree">
+            <i class="bi bi-tree-fill"></i> 目录树
+        </button>
+        <button class="function-tab" data-function="clean">
+            <i class="bi bi-trash"></i> 空目录清理
+        </button>
+        <button class="function-tab" data-function="rename">
+            <i class="bi bi-pencil-square"></i> 批量重命名
+        </button>
+        <button class="function-tab" data-function="organize">
+            <i class="bi bi-folder-plus"></i> 目录整理
+        </button>
+        <button class="function-tab" data-function="editor">
+            <i class="bi bi-code-slash"></i> 文件编辑器
+        </button>
+    </div>
+</div>
+
+<!-- 消息提示容器 -->
+<div class="message-container" id="messageContainer"></div>
+
+<!-- 自定义确认对话框 -->
+<div class="modal fade custom-confirm-modal" id="customConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalTitle">
+                    <i class="bi bi-exclamation-triangle"></i> 确认操作
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="confirmModalIcon"></div>
+                <div id="confirmModalMessage"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-cancel text-white" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> 取消
+                </button>
+                <button type="button" class="btn btn-confirm text-white" id="confirmModalOkBtn">
+                    <i class="bi bi-check-circle"></i> 确认
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 操作日志面板 -->
+<div class="operation-log" id="operationLog">
+    <div class="log-header">
+        <div>
+            <i class="bi bi-clock-history"></i> 操作日志
+        </div>
+        <div>
+            <button class="btn btn-sm text-white" onclick="toggleOperationLog()"
+                    style="background: none; border: none;">
+                <i class="bi bi-dash-square"></i>
+            </button>
+        </div>
+    </div>
+    <div class="log-content" id="logContent"></div>
+    <div class="log-actions">
+        <button class="undo-btn" onclick="undoLastOperation()" id="undoBtn" disabled>
+            <i class="bi bi-arrow-counterclockwise"></i> 撤销
+        </button>
+        <button class="clear-log-btn" onclick="clearOperationLog()">
+            <i class="bi bi-trash"></i> 清空
+        </button>
+        <button class="clear-log-btn" onclick="toggleOperationLog()">
+            <i class="bi bi-eye-slash"></i> 隐藏
+        </button>
+    </div>
+</div>
+
+<!-- 浮动操作日志按钮 -->
+<div class="floating-log-btn" id="floatingLogBtn" onclick="showOperationLog()">
+    <i class="bi bi-clock-history"></i>
+    <span class="badge bg-danger" id="logCount" style="display: none;">0</span>
+</div>
+
+<div class="container main-container">
+
+    <!-- 连接管理面板 -->
+    <div class="function-panel active" id="connectionPanel">
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow">
@@ -90,24 +142,39 @@
                         </h5>
                     </div>
                     <div class="card-body">
+                        <!-- 认证方式选择 -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="btn-group w-100" role="group">
+                                    <input type="radio" class="btn-check" name="authType" id="authPassword"
+                                           autocomplete="off" checked>
+                                    <label class="btn btn-outline-primary" for="authPassword">
+                                        <i class="bi bi-shield-lock"></i> 密码认证
+                                    </label>
+                                    <input type="radio" class="btn-check" name="authType" id="authKey"
+                                           autocomplete="off">
+                                    <label class="btn btn-outline-primary" for="authKey">
+                                        <i class="bi bi-key"></i> SSH密钥认证
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                         <form id="connectionForm">
+                            <!-- 基本连接信息 -->
                             <div class="row">
                                 <div class="col-md-3">
                                     <div class="mb-3">
                                         <label for="hostname" class="form-label">服务器地址</label>
-                                        <input type="text" class="form-control" id="hostname" placeholder="192.168.1.100" required>
+                                        <input type="text" class="form-control" id="hostname"
+                                               placeholder="192.168.1.100" required>
                                     </div>
                                 </div>
                                 <div class="col-md-3">
                                     <div class="mb-3">
                                         <label for="username" class="form-label">用户名</label>
-                                        <input type="text" class="form-control" id="username" placeholder="root" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="mb-3">
-                                        <label for="password" class="form-label">密码</label>
-                                        <input type="password" class="form-control" id="password" required>
+                                        <input type="text" class="form-control" id="username" placeholder="root"
+                                               required>
                                     </div>
                                 </div>
                                 <div class="col-md-2">
@@ -116,16 +183,62 @@
                                         <input type="number" class="form-control" id="port" value="22">
                                     </div>
                                 </div>
-                                <div class="col-md-1">
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label for="connectionDescription" class="form-label">描述（可选）</label>
+                                        <input type="text" class="form-control" id="connectionDescription"
+                                               placeholder="生产服务器">
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
                                     <div class="mb-3">
                                         <label class="form-label">&nbsp;</label>
                                         <div>
                                             <button type="button" id="connectBtn" class="btn btn-primary w-100">
                                                 <i class="bi bi-plug"></i> 连接
                                             </button>
-                                            <button type="button" id="disconnectBtn" class="btn btn-danger w-100" style="display:none;">
+                                            <button type="button" id="disconnectBtn" class="btn btn-danger w-100"
+                                                    style="display:none;">
                                                 <i class="bi bi-plug-fill"></i> 断开
                                             </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 密码认证 -->
+                            <div id="passwordAuth" class="auth-section">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="password" class="form-label">密码</label>
+                                            <input type="password" class="form-control" id="password">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SSH密钥认证 -->
+                            <div id="keyAuth" class="auth-section" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="privateKeyPath" class="form-label">私钥文件路径</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="privateKeyPath"
+                                                       placeholder="C:\Users\用户\.ssh\id_rsa">
+                                                <button class="btn btn-outline-secondary" type="button"
+                                                        onclick="browsePrivateKey()">
+                                                    <i class="bi bi-folder"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label for="keyPassphrase" class="form-label">密钥密码（可选）</label>
+                                            <input type="password" class="form-control" id="keyPassphrase"
+                                                   placeholder="私钥保护密码">
                                         </div>
                                     </div>
                                 </div>
@@ -136,39 +249,68 @@
             </div>
         </div>
 
-        <!-- 功能切换面板 -->
-        <div class="row mb-4" id="functionPanel" style="display:none;">
+        <!-- 连接历史面板 -->
+        <div class="row">
             <div class="col-12">
                 <div class="card shadow">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
-                            <i class="bi bi-gear"></i> 功能选择
+                            <i class="bi bi-clock-history"></i> 连接历史
                         </h5>
+                        <button class="btn btn-sm btn-outline-light" onclick="refreshConnectionHistory()">
+                            <i class="bi bi-arrow-clockwise"></i> 刷新
+                        </button>
                     </div>
                     <div class="card-body">
-                        <div class="btn-group w-100" role="group" aria-label="功能选择">
-                            <input type="radio" class="btn-check" name="functionMode" id="compareMode" value="compare" checked>
-                            <label class="btn btn-outline-primary" for="compareMode">
-                                <i class="bi bi-search"></i> 重复文件比较
-                            </label>
-                            
-                            <input type="radio" class="btn-check" name="functionMode" id="renameMode" value="rename">
-                            <label class="btn btn-outline-success" for="renameMode">
-                                <i class="bi bi-pencil-square"></i> 批量重命名
-                            </label>
-                            
-                            <input type="radio" class="btn-check" name="functionMode" id="organizeMode" value="organize">
-                            <label class="btn btn-outline-warning" for="organizeMode">
-                                <i class="bi bi-folder-plus"></i> 目录整理
-                            </label>
+                        <div id="connectionHistoryList">
+                            <div class="text-center py-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                                <p class="mt-2 text-muted">正在加载连接历史...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- 路径比较面板 -->
-        <div class="row mb-4" id="comparePanel" style="display:none;">
+    <!-- 本地工具面板 -->
+    <div class="function-panel" id="toolsPanel">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-tools"></i> 本地工具集
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info" role="alert">
+                            <i class="bi bi-info-circle"></i>
+                            本地工具集仅在本地模式下可用，可以对本地文件系统进行操作。
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-tree"></i> 目录树生成</h6>
+                                <p class="text-muted small">生成指定目录的树形结构图</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-trash"></i> 空目录清理</h6>
+                                <p class="text-muted small">清理指定目录下的所有空目录</p>
+                            </div>
+                        </div>
+                        <p class="text-muted">请通过左侧菜单访问具体工具功能。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 目录比较面板 -->
+    <div class="function-panel" id="comparePanel">
+        <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow">
                     <div class="card-header">
@@ -182,8 +324,10 @@
                                 <div class="mb-3">
                                     <label for="path1" class="form-label">路径 1</label>
                                     <div class="input-group">
-                                        <input type="text" class="form-control path-input" id="path1" placeholder="/home/user/folder1">
-                                        <button class="btn btn-outline-secondary" type="button" onclick="browsePath('path1')">
+                                        <input type="text" class="form-control path-input" id="path1"
+                                               placeholder="/home/user/folder1">
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                onclick="browsePath('path1')">
                                             <i class="bi bi-folder"></i>
                                         </button>
                                     </div>
@@ -193,8 +337,10 @@
                                 <div class="mb-3">
                                     <label for="path2" class="form-label">路径 2</label>
                                     <div class="input-group">
-                                        <input type="text" class="form-control path-input" id="path2" placeholder="/home/user/folder2">
-                                        <button class="btn btn-outline-secondary" type="button" onclick="browsePath('path2')">
+                                        <input type="text" class="form-control path-input" id="path2"
+                                               placeholder="/home/user/folder2">
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                onclick="browsePath('path2')">
                                             <i class="bi bi-folder"></i>
                                         </button>
                                     </div>
@@ -227,9 +373,140 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- 批量重命名面板 -->
-        <div class="row mb-4" id="renamePanel" style="display:none;">
+    <!-- 目录树面板 -->
+    <div class="function-panel" id="treePanel">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-tree"></i> 目录树生成
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="treeDirectory" class="form-label">目录路径</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control path-input" id="treeDirectory"
+                                               placeholder="当前目录">
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                onclick="browsePath('treeDirectory')">
+                                            <i class="bi bi-folder"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="mb-3">
+                                    <label for="maxLevel" class="form-label">最大层级</label>
+                                    <input type="number" class="form-control" id="maxLevel" placeholder="不限制">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">选项</label>
+                                    <div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" id="applyGitignore" checked>
+                                            <label class="form-check-label" for="applyGitignore">
+                                                应用 .gitignore
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" id="excludeFiles">
+                                            <label class="form-check-label" for="excludeFiles">
+                                                仅显示目录
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">&nbsp;</label>
+                                    <div>
+                                        <button type="button" id="generateTreeBtn" class="btn btn-success w-100">
+                                            <i class="bi bi-tree"></i> 生成目录树
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 目录树输出 -->
+        <div class="row mb-4" id="treeOutputPanel" style="display:none;">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-tree-fill"></i> 目录树结构
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="treeOutput" class="tree-output"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 空目录清理面板 -->
+    <div class="function-panel" id="cleanPanel">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-trash"></i> 空目录清理
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="cleanDirectory" class="form-label">清理目录</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control path-input" id="cleanDirectory"
+                                               placeholder="当前目录">
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                onclick="browsePath('cleanDirectory')">
+                                            <i class="bi bi-folder"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">&nbsp;</label>
+                                    <div>
+                                        <button type="button" id="cleanEmptyDirsBtn" class="btn btn-warning w-100">
+                                            <i class="bi bi-trash"></i> 清理空目录
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="alert alert-warning" role="alert">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            此操作将永久删除空目录，请谨慎操作！该功能在本地模式和远程模式下均可使用。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量重命名面板 -->
+    <div class="function-panel" id="renamePanel">
+        <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow">
                     <div class="card-header">
@@ -239,63 +516,89 @@
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="renamePath" class="form-label">目标目录</label>
                                     <div class="input-group">
-                                        <input type="text" class="form-control path-input" id="renamePath" placeholder="/home/user/folder">
-                                        <button class="btn btn-outline-secondary" type="button" onclick="browsePath('renamePath')">
+                                        <input type="text" class="form-control path-input" id="renamePath"
+                                               placeholder="选择要重命名文件的目录">
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                onclick="browsePath('renamePath')">
                                             <i class="bi bi-folder"></i>
                                         </button>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="renameType" class="form-label">重命名类型</label>
-                                    <select class="form-control" id="renameType" onchange="toggleRegexInputs()">
+                                    <select class="form-select" id="renameType" onchange="toggleRenameInputs()">
                                         <option value="remove_number_prefix">移除数字前缀</option>
-                                        <option value="add_sequence">添加序号前缀</option>
+                                        <option value="add_sequence_prefix">添加序号前缀</option>
+                                        <option value="add_sequence_suffix">添加序号后缀</option>
+                                        <option value="add_custom_prefix">添加自定义前缀</option>
+                                        <option value="add_custom_suffix">添加自定义后缀</option>
                                         <option value="remove_special_chars">移除特殊字符</option>
                                         <option value="to_lowercase">转为小写</option>
                                         <option value="to_uppercase">转为大写</option>
-                                        <option value="space_to_underscore">空格替换为下划线</option>
+                                        <option value="space_to_underscore">空格替换下划线</option>
+                                        <option value="underscore_to_space">下划线替换空格</option>
+                                        <option value="date_prefix">添加日期前缀</option>
+                                        <option value="capitalize_words">首字母大写</option>
                                         <option value="regex">正则表达式</option>
                                     </select>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                        </div>
+
+                        <!-- 自定义文本输入框 -->
+                        <div class="row" id="customTextInputs" style="display:none;">
+                            <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">&nbsp;</label>
-                                    <div>
-                                        <button type="button" id="renameBtn" class="btn btn-primary w-100">
-                                            <i class="bi bi-pencil-square"></i> 执行重命名
-                                        </button>
-                                    </div>
+                                    <label for="customText" class="form-label">自定义文本</label>
+                                    <input type="text" class="form-control" id="customText"
+                                           placeholder="输入要添加的文本">
+                                    <div class="form-text">将添加到文件名的前缀或后缀位置</div>
                                 </div>
                             </div>
                         </div>
+
+                        <!-- 正则表达式输入框 -->
                         <div class="row" id="regexInputs" style="display:none;">
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="regexPattern" class="form-label">正则表达式模式</label>
-                                    <input type="text" class="form-control" id="regexPattern" placeholder="例如: ^\d+\s*">
+                                    <input type="text" class="form-control" id="regexPattern"
+                                           placeholder="例如: ^\d+\s*">
+                                    <div class="form-text">匹配要替换的部分</div>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="regexReplacement" class="form-label">替换内容</label>
-                                    <input type="text" class="form-control" id="regexReplacement" placeholder="例如: (空白表示删除)">
+                                    <input type="text" class="form-control" id="regexReplacement"
+                                           placeholder="留空表示删除">
+                                    <div class="form-text">用来替换匹配内容的文本</div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="button" class="btn btn-warning" onclick="executeRename()">
+                                    <i class="bi bi-pencil-square"></i> 执行重命名
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- 目录整理面板 -->
-        <div class="row mb-4" id="organizePanel" style="display:none;">
+    <!-- 目录整理面板 -->
+    <div class="function-panel" id="organizePanel">
+        <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow">
                     <div class="card-header">
@@ -305,835 +608,229 @@
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="organizePath" class="form-label">目标目录</label>
                                     <div class="input-group">
-                                        <input type="text" class="form-control path-input" id="organizePath" placeholder="/home/user/folder">
-                                        <button class="btn btn-outline-secondary" type="button" onclick="browsePath('organizePath')">
+                                        <input type="text" class="form-control path-input" id="organizePath"
+                                               placeholder="选择要整理的目录">
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                onclick="browsePath('organizePath')">
                                             <i class="bi bi-folder"></i>
                                         </button>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="organizeType" class="form-label">整理类型</label>
-                                    <select class="form-control" id="organizeType">
+                                    <select class="form-select" id="organizeType">
                                         <option value="create_folders_for_files">为文件创建同名文件夹</option>
                                         <option value="remove_empty_dirs">移除空目录</option>
                                     </select>
+                                    <div class="form-text">选择目录整理方式</div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="alert alert-info" role="alert">
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>整理说明：</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li><strong>为文件创建同名文件夹：</strong>为每个文件创建一个以文件名（不含扩展名）命名的文件夹，并将文件移入其中
+                                        </li>
+                                        <li><strong>移除空目录：</strong>递归删除目录下所有的空文件夹</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="button" class="btn btn-primary" onclick="executeOrganize()">
+                                    <i class="bi bi-folder-plus"></i> 执行整理
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 文件编辑器面板 -->
+    <div class="function-panel" id="editorPanel">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-code-slash"></i> 文件编辑器
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
                                 <div class="mb-3">
-                                    <label class="form-label">&nbsp;</label>
-                                    <div>
-                                        <button type="button" id="organizeBtn" class="btn btn-warning w-100">
-                                            <i class="bi bi-folder-plus"></i> 执行整理
+                                    <label for="editorFilePath" class="form-label">文件路径</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control path-input" id="editorFilePath"
+                                               placeholder="输入文件路径或使用浏览器选择">
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                onclick="browseForFile()">
+                                            <i class="bi bi-file-earmark"></i> 浏览
+                                        </button>
+                                        <button class="btn btn-outline-primary" type="button"
+                                                onclick="loadFileContent()">
+                                            <i class="bi bi-folder-open"></i> 打开
                                         </button>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 结果显示面板 -->
-        <div class="row" id="resultsPanel" style="display:none;">
-            <div class="col-12">
-                <div class="card shadow">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0" id="resultsTitle">
-                            <i class="bi bi-files"></i> 重复文件列表
-                        </h5>
-                        <span id="duplicateCount" class="badge bg-light text-dark"></span>
-                    </div>
-                    <div class="card-body">
-                        <!-- 批量操作控制区 -->
-                        <div class="batch-controls" id="batchControls" style="display:none;">
-                            <div class="row align-items-center">
-                                <div class="col-md-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="selectAll">
-                                        <label class="form-check-label" for="selectAll">
-                                            <strong>全选/全不选</strong>
-                                        </label>
-                                    </div>
-                                    <small class="text-muted">已选择: <span id="selectedCount">0</span> 个项目</small>
-                                </div>
-                                <div class="col-md-6 text-end">
-                                    <button type="button" class="btn btn-warning me-2" onclick="batchDeletePath1()">
-                                        <i class="bi bi-trash"></i> 批量删除路径1
-                                    </button>
-                                    <button type="button" class="btn btn-danger" onclick="batchDeletePath2()">
-                                        <i class="bi bi-trash"></i> 批量删除路径2
-                                    </button>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="fileType" class="form-label">文件类型</label>
+                                    <select class="form-select" id="fileType" onchange="updateEditorLanguage()">
+                                        <option value="text">纯文本</option>
+                                        <option value="yaml">YAML</option>
+                                        <option value="json">JSON</option>
+                                        <option value="xml">XML</option>
+                                        <option value="ini">INI/Config</option>
+                                        <option value="shell">Shell Script</option>
+                                        <option value="python">Python</option>
+                                        <option value="javascript">JavaScript</option>
+                                        <option value="css">CSS</option>
+                                        <option value="html">HTML</option>
+                                        <option value="sql">SQL</option>
+                                        <option value="markdown">Markdown</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
-                        <div id="duplicatesList"></div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="editor-container">
+                                    <div class="editor-toolbar">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <span class="badge bg-secondary" id="fileInfo">未加载文件</span>
+                                                <span class="badge bg-info" id="cursorInfo">行: 1, 列: 1</span>
+                                            </div>
+                                            <div>
+                                                <button class="btn btn-sm btn-outline-secondary"
+                                                        onclick="formatContent()">
+                                                    <i class="bi bi-code"></i> 格式化
+                                                </button>
+                                                <button class="btn btn-sm btn-success" onclick="saveFileContent()">
+                                                    <i class="bi bi-save"></i> 保存
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <textarea id="fileEditor" class="file-editor"
+                                              placeholder="在这里编辑文件内容..."></textarea>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 目录浏览模态框 -->
-    <div class="modal fade" id="browseModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="bi bi-folder-open"></i> 选择目录
+    <!-- 结果显示面板 -->
+    <div class="row" id="resultsPanel" style="display:none;">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0" id="resultsTitle">
+                        <i class="bi bi-files"></i> 重复文件列表
                     </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <span id="duplicateCount" class="badge bg-light text-dark"></span>
                 </div>
-                <div class="modal-body">
-                    <nav aria-label="breadcrumb">
-                        <ol class="breadcrumb" id="pathBreadcrumb"></ol>
-                    </nav>
-                    <div id="fileList" class="list-group"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" id="selectPathBtn">选择此路径</button>
+                <div class="card-body">
+                    <!-- 批量操作控制区 -->
+                    <div class="batch-controls" id="batchControls" style="display:none;">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="selectAll">
+                                    <label class="form-check-label" for="selectAll">
+                                        <strong>全选/全不选</strong>
+                                    </label>
+                                </div>
+                                <small class="text-muted">已选择: <span id="selectedCount">0</span> 个项目</small>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <button type="button" class="btn btn-warning me-2" onclick="batchDeletePath1()">
+                                    <i class="bi bi-trash"></i> 批量删除路径1
+                                </button>
+                                <button type="button" class="btn btn-danger" onclick="batchDeletePath2()">
+                                    <i class="bi bi-trash"></i> 批量删除路径2
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="duplicatesList"></div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- 加载提示 -->
-    <div class="position-fixed top-50 start-50 translate-middle loading" id="loadingSpinner">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">加载中...</span>
+<!-- 目录浏览模态框 -->
+<div class="modal fade" id="browseModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-folder-open"></i> 选择目录
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- 路径输入框 -->
+                <div class="path-input-container">
+                    <input type="text" class="form-control" id="directPathInput" placeholder="输入目录路径并按回车键跳转...">
+                    <button type="button" class="btn btn-primary" onclick="navigateToPath()">
+                        <i class="bi bi-arrow-right"></i>
+                    </button>
+                </div>
+                
+                <!-- 面包屑导航 -->
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb" id="pathBreadcrumb"></ol>
+                </nav>
+                
+                <!-- 文件列表 -->
+                <div id="fileList" class="list-group"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="selectPathBtn">选择此路径</button>
+            </div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        let currentBrowsingInput = '';
-        let currentPath = '/';
-        let browseModal;
-
-        document.addEventListener('DOMContentLoaded', function() {
-            browseModal = new bootstrap.Modal(document.getElementById('browseModal'));
-            
-            // 连接按钮事件
-            document.getElementById('connectBtn').addEventListener('click', connectSSH);
-            document.getElementById('disconnectBtn').addEventListener('click', disconnectSSH);
-            document.getElementById('compareBtn').addEventListener('click', comparePaths);
-            document.getElementById('selectPathBtn').addEventListener('click', selectCurrentPath);
-            document.getElementById('renameBtn').addEventListener('click', executeRename);
-            document.getElementById('organizeBtn').addEventListener('click', executeOrganize);
-            
-            // 功能模式切换事件
-            document.querySelectorAll('input[name="functionMode"]').forEach(radio => {
-                radio.addEventListener('change', switchFunctionMode);
-            });
-            
-            // 检查连接状态
-            updateConnectionStatus({{ 'true' if connected else 'false' }});
-        });
-
-        function showLoading() {
-            document.getElementById('loadingSpinner').style.display = 'block';
-        }
-
-        function hideLoading() {
-            document.getElementById('loadingSpinner').style.display = 'none';
-        }
-
-        function showMessage(message, type = 'info') {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-            alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.container').firstChild);
-            
-            setTimeout(() => {
-                alertDiv.remove();
-            }, 5000);
-        }
-
-        function updateConnectionStatus(connected) {
-            const badge = document.getElementById('connectionBadge');
-            const connectBtn = document.getElementById('connectBtn');
-            const disconnectBtn = document.getElementById('disconnectBtn');
-            const functionPanel = document.getElementById('functionPanel');
-            
-            if (connected) {
-                badge.className = 'badge bg-success';
-                badge.innerHTML = '<i class="bi bi-wifi"></i> 已连接';
-                connectBtn.style.display = 'none';
-                disconnectBtn.style.display = 'block';
-                functionPanel.style.display = 'block';
-                switchFunctionMode(); // 显示对应的功能面板
-            } else {
-                badge.className = 'badge bg-danger';
-                badge.innerHTML = '<i class="bi bi-wifi-off"></i> 未连接';
-                connectBtn.style.display = 'block';
-                disconnectBtn.style.display = 'none';
-                functionPanel.style.display = 'none';
-                document.getElementById('comparePanel').style.display = 'none';
-                document.getElementById('renamePanel').style.display = 'none';
-                document.getElementById('organizePanel').style.display = 'none';
-                document.getElementById('resultsPanel').style.display = 'none';
-            }
-        }
-
-        async function connectSSH() {
-            const hostname = document.getElementById('hostname').value;
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            const port = document.getElementById('port').value;
-
-            if (!hostname || !username || !password) {
-                showMessage('请填写完整的连接信息', 'warning');
-                return;
-            }
-
-            showLoading();
-            try {
-                const response = await fetch('/connect', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        hostname: hostname,
-                        username: username,
-                        password: password,
-                        port: port
-                    })
-                });
-
-                const result = await response.json();
-                hideLoading();
-
-                if (result.success) {
-                    updateConnectionStatus(true);
-                    showMessage(result.message, 'success');
-                } else {
-                    showMessage(result.message, 'danger');
-                }
-            } catch (error) {
-                hideLoading();
-                showMessage('连接请求失败: ' + error.message, 'danger');
-            }
-        }
-
-        async function disconnectSSH() {
-            try {
-                const response = await fetch('/disconnect', {
-                    method: 'POST'
-                });
-                const result = await response.json();
-                updateConnectionStatus(false);
-                showMessage(result.message, 'info');
-            } catch (error) {
-                showMessage('断开连接失败: ' + error.message, 'danger');
-            }
-        }
-
-        async function comparePaths() {
-            const path1 = document.getElementById('path1').value;
-            const path2 = document.getElementById('path2').value;
-            const similarityThreshold = parseFloat(document.getElementById('similarityThreshold').value);
-
-            if (!path1 || !path2) {
-                showMessage('请输入两个有效的路径', 'warning');
-                return;
-            }
-
-            showLoading();
-            try {
-                const response = await fetch('/compare', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        path1: path1,
-                        path2: path2,
-                        similarity_threshold: similarityThreshold
-                    })
-                });
-
-                const result = await response.json();
-                hideLoading();
-
-                if (result.success) {
-                    displayDuplicates(result.duplicates);
-                    showMessage(result.message, 'success');
-                } else {
-                    showMessage(result.message, 'danger');
-                }
-            } catch (error) {
-                hideLoading();
-                showMessage('比较请求失败: ' + error.message, 'danger');
-            }
-        }
-
-        let duplicatesData = [];
-        
-        function displayDuplicates(duplicates) {
-            duplicatesData = duplicates; // 保存数据供批量操作使用
-            const resultsPanel = document.getElementById('resultsPanel');
-            const duplicatesList = document.getElementById('duplicatesList');
-            const duplicateCount = document.getElementById('duplicateCount');
-            const batchControls = document.getElementById('batchControls');
-
-            const exactCount = duplicates.filter(d => d.match_type === 'exact').length;
-            const similarCount = duplicates.filter(d => d.match_type === 'similar').length;
-            duplicateCount.textContent = `找到 ${exactCount} 个完全重复项和 ${similarCount} 个相似项`;
-
-            if (duplicates.length === 0) {
-                duplicatesList.innerHTML = '<div class="alert alert-info">没有找到重复的文件或文件夹</div>';
-                batchControls.style.display = 'none';
-            } else {
-                let html = '';
-                duplicates.forEach((item, index) => {
-                    const itemClass = item.match_type === 'exact' ? 'duplicate-item' : 'similar-item';
-                    const similarityBadge = item.match_type === 'similar' ? 
-                        `<span class="badge bg-warning text-dark ms-2">相似度: ${Math.round(item.similarity * 100)}%</span>` : '';
-                    
-                    html += `
-                        <div class="card mb-3 ${itemClass}">
-                            <div class="card-body">
-                                <div class="row align-items-center">
-                                    <div class="col-md-1">
-                                        <input type="checkbox" class="form-check-input item-checkbox" 
-                                               data-index="${index}" onchange="updateSelectedCount()">
-                                    </div>
-                                    <div class="col-md-5">
-                                        <h6 class="card-title">
-                                            <i class="bi bi-${item.type === 'file' ? 'file-earmark' : 'folder'}"></i>
-                                            ${item.name}
-                                            ${similarityBadge}
-                                        </h6>
-                                        <small class="text-muted">类型: ${item.type === 'file' ? '文件' : '目录'}</small>
-                                        ${item.type === 'file' && typeof item.size === 'number' ? '<br><small class="text-muted">大小: ' + formatFileSize(item.size) + '</small>' : ''}
-                                        ${item.type === 'file' && typeof item.size === 'string' ? '<br><small class="text-muted">大小: ' + item.size + '</small>' : ''}
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="row">
-                                            <div class="col-6">
-                                                <div class="card bg-light">
-                                                    <div class="card-body p-2">
-                                                        <small class="text-muted d-block">路径 1:</small>
-                                                        <code class="small">${item.path1}</code>
-                                                        <br><small class="text-muted">修改时间: ${item.modified1}</small>
-                                                        <br>
-                                                        <button class="btn btn-danger btn-sm mt-2" onclick="deleteFile('${item.path1}', ${index})">
-                                                            <i class="bi bi-trash"></i> 删除
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="col-6">
-                                                <div class="card bg-light">
-                                                    <div class="card-body p-2">
-                                                        <small class="text-muted d-block">路径 2:</small>
-                                                        <code class="small">${item.path2}</code>
-                                                        <br><small class="text-muted">修改时间: ${item.modified2}</small>
-                                                        <br>
-                                                        <button class="btn btn-danger btn-sm mt-2" onclick="deleteFile('${item.path2}', ${index})">
-                                                            <i class="bi bi-trash"></i> 删除
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-                duplicatesList.innerHTML = html;
-                batchControls.style.display = 'block';
-                
-                // 设置全选/全不选事件
-                document.getElementById('selectAll').onchange = function() {
-                    const checkboxes = document.querySelectorAll('.item-checkbox');
-                    checkboxes.forEach(cb => cb.checked = this.checked);
-                    updateSelectedCount();
-                };
-            }
-
-            resultsPanel.style.display = 'block';
-        }
-
-        async function deleteFile(path, index) {
-            if (!confirm(`确定要删除 ${path} 吗？此操作不可撤销！`)) {
-                return;
-            }
-
-            showLoading();
-            try {
-                const response = await fetch('/delete', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        path: path
-                    })
-                });
-
-                const result = await response.json();
-                hideLoading();
-
-                if (result.success) {
-                    showMessage(result.message, 'success');
-                    // 重新比较以更新列表
-                    comparePaths();
-                } else {
-                    showMessage(result.message, 'danger');
-                }
-            } catch (error) {
-                hideLoading();
-                showMessage('删除请求失败: ' + error.message, 'danger');
-            }
-        }
-
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-
-        async function browsePath(inputId) {
-            // 先检查连接状态
-            try {
-                const statusResponse = await fetch('/connection_status');
-                const statusResult = await statusResponse.json();
-                
-                if (!statusResult.connected) {
-                    showMessage('请先连接SSH服务器', 'warning');
-                    updateConnectionStatus(false);
-                    return;
-                }
-            } catch (error) {
-                showMessage('检查连接状态失败', 'danger');
-                return;
-            }
-            
-            currentBrowsingInput = inputId;
-            currentPath = document.getElementById(inputId).value || '/';
-            loadDirectory(currentPath);
-            browseModal.show();
-        }
-
-        async function loadDirectory(path) {
-            try {
-                const response = await fetch(`/browse?path=${encodeURIComponent(path)}`);
-                const result = await response.json();
-
-                if (result.success) {
-                    displayFileList(result.items, result.current_path);
-                    updateBreadcrumb(result.current_path);
-                } else {
-                    showMessage(result.message, 'danger');
-                    // 如果是连接问题，更新连接状态
-                    if (result.message.includes('请先连接SSH服务器')) {
-                        updateConnectionStatus(false);
-                        browseModal.hide();
-                    }
-                }
-            } catch (error) {
-                showMessage('浏览目录失败: ' + error.message, 'danger');
-            }
-        }
-
-        function displayFileList(items, path) {
-            const fileList = document.getElementById('fileList');
-            currentPath = path;
-            
-            let html = '';
-            
-            // 添加上级目录选项
-            if (path !== '/') {
-                html += `
-                    <div class="list-group-item file-item" onclick="navigateToParent()">
-                        <i class="bi bi-arrow-up"></i> 上级目录
-                    </div>
-                `;
-            }
-            
-            // 先显示目录
-            items.filter(item => item.is_dir).forEach(item => {
-                html += `
-                    <div class="list-group-item file-item" onclick="loadDirectory('${item.path}')">
-                        <i class="bi bi-folder text-warning"></i> ${item.name}
-                        <small class="text-muted float-end">${item.modified}</small>
-                    </div>
-                `;
-            });
-            
-            // 再显示文件
-            items.filter(item => !item.is_dir).forEach(item => {
-                html += `
-                    <div class="list-group-item">
-                        <i class="bi bi-file-earmark text-primary"></i> ${item.name}
-                        <small class="text-muted float-end">${formatFileSize(item.size)} | ${item.modified}</small>
-                    </div>
-                `;
-            });
-            
-            if (html === '') {
-                html = '<div class="list-group-item text-muted">目录为空</div>';
-            }
-            
-            fileList.innerHTML = html;
-        }
-
-        function updateBreadcrumb(path) {
-            const breadcrumb = document.getElementById('pathBreadcrumb');
-            const parts = path.split('/').filter(part => part !== '');
-            
-            let html = '<li class="breadcrumb-item"><a href="#" onclick="loadDirectory(\'/\')">根目录</a></li>';
-            let currentPath = '';
-            
-            parts.forEach((part, index) => {
-                currentPath += '/' + part;
-                if (index === parts.length - 1) {
-                    html += `<li class="breadcrumb-item active">${part}</li>`;
-                } else {
-                    html += `<li class="breadcrumb-item"><a href="#" onclick="loadDirectory('${currentPath}')">${part}</a></li>`;
-                }
-            });
-            
-            breadcrumb.innerHTML = html;
-        }
-
-        function navigateToParent() {
-            const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/')) || '/';
-            loadDirectory(parentPath);
-        }
-
-        function selectCurrentPath() {
-            document.getElementById(currentBrowsingInput).value = currentPath;
-            browseModal.hide();
-        }
-
-        function updateSelectedCount() {
-            const checked = document.querySelectorAll('.item-checkbox:checked').length;
-            document.getElementById('selectedCount').textContent = checked;
-        }
-
-        function getSelectedPaths(pathType) {
-            const checkedBoxes = document.querySelectorAll('.item-checkbox:checked');
-            const paths = [];
-            checkedBoxes.forEach(checkbox => {
-                const index = parseInt(checkbox.dataset.index);
-                const item = duplicatesData[index];
-                if (pathType === 'path1') {
-                    paths.push(item.path1);
-                } else {
-                    paths.push(item.path2);
-                }
-            });
-            return paths;
-        }
-
-        async function batchDeletePath1() {
-            const paths = getSelectedPaths('path1');
-            if (paths.length === 0) {
-                showMessage('请先选择要删除的项目', 'warning');
-                return;
-            }
-            
-            const confirmMessage = `确定要删除路径1中的 ${paths.length} 个项目吗？\n\n${paths.slice(0, 5).join('\n')}${paths.length > 5 ? '\n...' : ''}\n\n此操作不可撤销！`;
-            if (!confirm(confirmMessage)) {
-                return;
-            }
-
-            await performBatchDelete(paths);
-        }
-
-        async function batchDeletePath2() {
-            const paths = getSelectedPaths('path2');
-            if (paths.length === 0) {
-                showMessage('请先选择要删除的项目', 'warning');
-                return;
-            }
-            
-            const confirmMessage = `确定要删除路径2中的 ${paths.length} 个项目吗？\n\n${paths.slice(0, 5).join('\n')}${paths.length > 5 ? '\n...' : ''}\n\n此操作不可撤销！`;
-            if (!confirm(confirmMessage)) {
-                return;
-            }
-
-            await performBatchDelete(paths);
-        }
-
-        async function performBatchDelete(paths) {
-            showLoading();
-            try {
-                const response = await fetch('/batch_delete', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        paths: paths
-                    })
-                });
-
-                const result = await response.json();
-                hideLoading();
-
-                if (result.success) {
-                    showMessage(result.message, 'success');
-                    
-                    // 显示详细结果
-                    let detailMessage = `删除结果详情:\n`;
-                    result.results.forEach(r => {
-                        detailMessage += `${r.success ? '✅' : '❌'} ${r.path}: ${r.message}\n`;
-                    });
-                    
-                    if (result.summary.failed > 0) {
-                        console.log('批量删除详细结果:', detailMessage);
-                    }
-                    
-                    // 重新比较以更新列表
-                    comparePaths();
-                } else {
-                    showMessage(result.message, 'danger');
-                }
-            } catch (error) {
-                hideLoading();
-                showMessage('批量删除请求失败: ' + error.message, 'danger');
-            }
-        }
-
-        // 功能模式切换
-        function switchFunctionMode() {
-            const mode = document.querySelector('input[name="functionMode"]:checked')?.value || 'compare';
-            
-            // 隐藏所有功能面板
-            document.getElementById('comparePanel').style.display = 'none';
-            document.getElementById('renamePanel').style.display = 'none';
-            document.getElementById('organizePanel').style.display = 'none';
-            document.getElementById('resultsPanel').style.display = 'none';
-            
-            // 显示对应的功能面板
-            if (mode === 'compare') {
-                document.getElementById('comparePanel').style.display = 'block';
-            } else if (mode === 'rename') {
-                document.getElementById('renamePanel').style.display = 'block';
-            } else if (mode === 'organize') {
-                document.getElementById('organizePanel').style.display = 'block';
-            }
-        }
-
-        // 切换正则表达式输入框
-        function toggleRegexInputs() {
-            const renameType = document.getElementById('renameType').value;
-            const regexInputs = document.getElementById('regexInputs');
-            
-            if (renameType === 'regex') {
-                regexInputs.style.display = 'block';
-            } else {
-                regexInputs.style.display = 'none';
-            }
-        }
-
-        // 执行批量重命名
-        async function executeRename() {
-            const path = document.getElementById('renamePath').value;
-            const renameType = document.getElementById('renameType').value;
-            const pattern = document.getElementById('regexPattern').value;
-            const replacement = document.getElementById('regexReplacement').value;
-
-            if (!path) {
-                showMessage('请输入目标目录路径', 'warning');
-                return;
-            }
-
-            if (renameType === 'regex' && !pattern) {
-                showMessage('使用正则表达式时，请输入正则表达式模式', 'warning');
-                return;
-            }
-
-            const confirmMessage = `确定要对目录 ${path} 中的文件进行批量重命名吗？\n\n重命名类型: ${getRenameTypeText(renameType)}\n\n此操作不可撤销！`;
-            if (!confirm(confirmMessage)) {
-                return;
-            }
-
-            showLoading();
-            try {
-                const response = await fetch('/batch_rename', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        path: path,
-                        rename_type: renameType,
-                        pattern: pattern,
-                        replacement: replacement
-                    })
-                });
-
-                const result = await response.json();
-                hideLoading();
-
-                if (result.success) {
-                    displayOperationResults('重命名结果', result.results, result.message);
-                    showMessage(result.message, 'success');
-                } else {
-                    showMessage(result.message, 'danger');
-                }
-            } catch (error) {
-                hideLoading();
-                showMessage('批量重命名请求失败: ' + error.message, 'danger');
-            }
-        }
-
-        // 执行目录整理
-        async function executeOrganize() {
-            const path = document.getElementById('organizePath').value;
-            const organizeType = document.getElementById('organizeType').value;
-
-            if (!path) {
-                showMessage('请输入目标目录路径', 'warning');
-                return;
-            }
-
-            const confirmMessage = `确定要对目录 ${path} 执行整理操作吗？\n\n整理类型: ${getOrganizeTypeText(organizeType)}\n\n此操作不可撤销！`;
-            if (!confirm(confirmMessage)) {
-                return;
-            }
-
-            showLoading();
-            try {
-                const response = await fetch('/organize_directory', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        path: path,
-                        organize_type: organizeType
-                    })
-                });
-
-                const result = await response.json();
-                hideLoading();
-
-                if (result.success) {
-                    displayOperationResults('整理结果', result.results, result.message);
-                    showMessage(result.message, 'success');
-                } else {
-                    showMessage(result.message, 'danger');
-                }
-            } catch (error) {
-                hideLoading();
-                showMessage('目录整理请求失败: ' + error.message, 'danger');
-            }
-        }
-
-        // 显示操作结果
-        function displayOperationResults(title, results, message) {
-            const resultsPanel = document.getElementById('resultsPanel');
-            const resultsTitle = document.getElementById('resultsTitle');
-            const duplicateCount = document.getElementById('duplicateCount');
-            const duplicatesList = document.getElementById('duplicatesList');
-            const batchControls = document.getElementById('batchControls');
-
-            // 更新标题和计数
-            resultsTitle.innerHTML = `<i class="bi bi-check-circle"></i> ${title}`;
-            duplicateCount.textContent = message;
-
-            // 隐藏批量控制区域（不适用于重命名和整理操作）
-            batchControls.style.display = 'none';
-
-            // 生成结果列表
-            let html = '';
-            results.forEach((item, index) => {
-                const statusIcon = item.success ? 'bi-check-circle text-success' : 'bi-x-circle text-danger';
-                const cardClass = item.success ? 'border-success' : 'border-danger';
-                
-                html += `
-                    <div class="card mb-2 ${cardClass}">
-                        <div class="card-body p-3">
-                            <div class="row align-items-center">
-                                <div class="col-md-1">
-                                    <i class="bi ${statusIcon}"></i>
-                                </div>
-                                <div class="col-md-11">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div>
-                `;
-                
-                if (item.old_name !== undefined) {
-                    // 重命名结果
-                    html += `
-                                            <strong>原名称:</strong> ${item.old_name}<br>
-                                            <strong>新名称:</strong> ${item.new_name}<br>
-                    `;
-                } else if (item.filename !== undefined) {
-                    // 文件夹创建结果
-                    html += `
-                                            <strong>文件:</strong> ${item.filename}<br>
-                                            <strong>文件夹:</strong> ${item.folder_name}<br>
-                    `;
-                } else if (item.dir_name !== undefined) {
-                    // 目录清理结果
-                    html += `
-                                            <strong>目录:</strong> ${item.dir_name}<br>
-                    `;
-                }
-                
-                html += `
-                                            <small class="text-muted">${item.message}</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            if (html === '') {
-                html = '<div class="alert alert-info">没有需要处理的项目</div>';
-            }
-
-            duplicatesList.innerHTML = html;
-            resultsPanel.style.display = 'block';
-        }
-
-        // 获取重命名类型文本
-        function getRenameTypeText(type) {
-            const typeMap = {
-                'remove_number_prefix': '移除数字前缀',
-                'add_sequence': '添加序号前缀',
-                'remove_special_chars': '移除特殊字符',
-                'to_lowercase': '转为小写',
-                'to_uppercase': '转为大写',
-                'space_to_underscore': '空格替换为下划线',
-                'regex': '正则表达式'
-            };
-            return typeMap[type] || type;
-        }
-
-        // 获取整理类型文本
-        function getOrganizeTypeText(type) {
-            const typeMap = {
-                'create_folders_for_files': '为文件创建同名文件夹',
-                'remove_empty_dirs': '移除空目录'
-            };
-            return typeMap[type] || type;
-        }
-    </script>
+</div>
+
+<!-- 加载提示 -->
+<div class="position-fixed top-50 start-50 translate-middle loading" id="loadingSpinner">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">加载中...</span>
+    </div>
+</div>
+
+<!-- JavaScript 文件引用 -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/connection.js') }}"></script>
+<script src="{{ url_for('static', filename='js/file-browser.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tools.js') }}"></script>
+<script src="{{ url_for('static', filename='js/logs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/file-editor.js') }}"></script>
+<script src="{{ url_for('static', filename='js/batch-operations.js') }}"></script>
 </body>
 </html> 
