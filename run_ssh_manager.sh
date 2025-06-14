@@ -20,8 +20,8 @@ fi
 
 echo
 echo "启动SSH文件管理器..."
-echo "应用将在 http://localhost:5000 启动"
+echo "应用将在 http://localhost:5001 启动"
 echo "按 Ctrl+C 停止服务器"
 echo
 
-python3 ssh_file_manager.py 
+python3 ssh_file_manager.py

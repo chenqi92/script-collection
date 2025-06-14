@@ -34,7 +34,7 @@ def start_server():
     print("   • 目录整理 (文件自动建文件夹)")
     print("   • SSH远程文件管理")
     print("")
-    print("🌐 访问地址: http://localhost:5000")
+    print("🌐 访问地址: http://localhost:5001")
     print("⏹️  停止服务: 按 Ctrl+C")
     print("=" * 50)
     
@@ -49,4 +49,4 @@ def start_server():
         return False
 
 if __name__ == "__main__":
-    start_server() 
+    start_server()
